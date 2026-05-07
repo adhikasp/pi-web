@@ -97,6 +97,7 @@ const viewerTheme = EditorView.theme({
 });
 
 function languageExtensions(language: string | undefined): Extension[] {
+  if (language === undefined) return [];
   switch (language) {
     case "typescript": return [javascript({ typescript: true })];
     case "javascript": return [javascript()];

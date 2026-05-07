@@ -26,7 +26,7 @@ export function normalizeMessage(message: unknown): ChatLine[] {
   const parts = normalizeContent(getProperty(message, "content"), message);
   const skillLines = role === "user" ? normalizeSkillInvocation(parts) : undefined;
   if (skillLines !== undefined) return skillLines;
-  const source = normalizeSource(message, parts);
+  const source = normalizeSource(message);
   if (role === "tool") return [{ role, parts, ...(source === undefined ? {} : { source }) }];
 
   const visible = parts.filter((part) => part.type !== "empty");
@@ -44,7 +44,7 @@ function normalizeSkillInvocation(parts: ChatPart[]): ChatLine[] | undefined {
 }
 
 function parseSkillBlock(text: string): { name: string; location: string; content: string; userMessage?: string } | undefined {
-  const match = text.match(/^<skill name="([^"]+)" location="([^"]+)">\n([\s\S]*?)\n<\/skill>(?:\n\n([\s\S]+))?$/);
+  const match = /^<skill name="([^"]+)" location="([^"]+)">\n([\s\S]*?)\n<\/skill>(?:\n\n([\s\S]+))?$/.exec(text);
   if (match === null) return undefined;
   const userMessage = match[4]?.trim();
   return {
@@ -55,7 +55,7 @@ function parseSkillBlock(text: string): { name: string; location: string; conten
   };
 }
 
-function normalizeSource(message: unknown, _parts: ChatPart[]): ChatLine["source"] | undefined {
+function normalizeSource(message: unknown): ChatLine["source"] | undefined {
   const source = getString(message, "source");
   if (source === "compaction" || source === "branch_summary") return source;
   return undefined;

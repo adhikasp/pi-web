@@ -149,9 +149,7 @@ export class PiWebApp extends LitElement {
     const workspace = this.state.selectedWorkspace;
     if (!project || !workspace) return;
     if (this.state.expandedDirs[path] !== undefined) {
-      const next = { ...this.state.expandedDirs };
-      delete next[path];
-      this.setState({ expandedDirs: next });
+      this.setState({ expandedDirs: omitKey(this.state.expandedDirs, path) });
       return;
     }
     try {
@@ -231,7 +229,7 @@ export class PiWebApp extends LitElement {
   }
 
   private renderWorkspacePanel() {
-    return html`<workspace-panel .workspace=${this.state.selectedWorkspace} .tool=${this.state.workspaceTool} .fileTree=${this.state.fileTree} .expandedDirs=${this.state.expandedDirs} .selectedFilePath=${this.state.selectedFilePath} .selectedFileContent=${this.state.selectedFileContent} .fileTreeStale=${this.state.fileTreeStale} .gitStatus=${this.state.gitStatus} .selectedDiffPath=${this.state.selectedDiffPath} .selectedDiff=${this.state.selectedDiff} .gitStale=${this.state.gitStale} .onSelectTool=${(tool: "files" | "git") => this.selectWorkspaceTool(tool)} .onRefreshFiles=${() => this.refreshFiles()} .onExpandDir=${(path: string) => this.expandDir(path)} .onSelectFile=${(path: string) => this.selectFile(path)} .onRefreshGit=${() => this.refreshGit()} .onSelectDiff=${(path: string) => this.selectDiff(path)}></workspace-panel>`;
+    return html`<workspace-panel .workspace=${this.state.selectedWorkspace} .tool=${this.state.workspaceTool} .fileTree=${this.state.fileTree} .expandedDirs=${this.state.expandedDirs} .selectedFilePath=${this.state.selectedFilePath} .selectedFileContent=${this.state.selectedFileContent} .fileTreeStale=${this.state.fileTreeStale} .gitStatus=${this.state.gitStatus} .selectedDiffPath=${this.state.selectedDiffPath} .selectedDiff=${this.state.selectedDiff} .gitStale=${this.state.gitStale} .onSelectTool=${(tool: "files" | "git") => { this.selectWorkspaceTool(tool); }} .onRefreshFiles=${() => this.refreshFiles()} .onExpandDir=${(path: string) => this.expandDir(path)} .onSelectFile=${(path: string) => this.selectFile(path)} .onRefreshGit=${() => this.refreshGit()} .onSelectDiff=${(path: string) => this.selectDiff(path)}></workspace-panel>`;
   }
 
   override render() {
@@ -249,9 +247,9 @@ export class PiWebApp extends LitElement {
         </aside>
         <main class=${`${state.mainView}-view`}>
           <div class="mobile-tabs">
-            <button class=${state.mainView === "chat" ? "selected" : ""} @click=${() => this.selectMainView("chat")}>Chat</button>
-            <button class=${state.mainView === "files" ? "selected" : ""} @click=${() => this.selectMainView("files")}>Files</button>
-            <button class=${state.mainView === "git" ? "selected" : ""} @click=${() => this.selectMainView("git")}>Git</button>
+            <button class=${state.mainView === "chat" ? "selected" : ""} @click=${() => { this.selectMainView("chat"); }}>Chat</button>
+            <button class=${state.mainView === "files" ? "selected" : ""} @click=${() => { this.selectMainView("files"); }}>Files</button>
+            <button class=${state.mainView === "git" ? "selected" : ""} @click=${() => { this.selectMainView("git"); }}>Git</button>
           </div>
           ${state.error ? html`<div class="error">${state.error}</div>` : null}
           ${state.selectedSession ? html`
@@ -272,6 +270,10 @@ export class PiWebApp extends LitElement {
 
 function isActive(status: AppState["status"]): boolean {
   return status?.isStreaming === true || status?.isBashRunning === true || status?.isCompacting === true;
+}
+
+function omitKey<T>(record: Record<string, T>, keyToOmit: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).filter(([key]) => key !== keyToOmit));
 }
 
 function nextFrame(): Promise<void> {

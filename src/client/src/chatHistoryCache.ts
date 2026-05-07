@@ -36,7 +36,7 @@ export function writeChatHistoryCache(sessionId: string, page: RawMessagePage): 
 }
 
 export function mergeChatHistory(existing: RawMessagePage | undefined, incoming: RawMessagePage): RawMessagePage {
-  if (!existing || existing.total !== incoming.total) return incoming;
+  if (existing?.total !== incoming.total) return incoming;
 
   const start = Math.min(existing.start, incoming.start);
   const end = Math.max(existing.start + existing.messages.length, incoming.start + incoming.messages.length);

@@ -356,7 +356,9 @@ function parseFileTreeEntry(value: unknown): FileTreeEntry {
 
 function parseFileContentResponse(value: unknown): FileContentResponse {
   const record = requireRecord(value);
-  return { path: requireString(record, "path"), ...optionalField("language", optionalString(record, "language")), encoding: requireString(record, "encoding") as "utf8", size: requireNumber(record, "size"), modifiedAt: requireString(record, "modifiedAt"), content: requireString(record, "content"), truncated: requireBoolean(record, "truncated"), binary: requireBoolean(record, "binary") };
+  const encoding = requireString(record, "encoding");
+  if (encoding !== "utf8") throw new Error("Invalid file encoding");
+  return { path: requireString(record, "path"), ...optionalField("language", optionalString(record, "language")), encoding, size: requireNumber(record, "size"), modifiedAt: requireString(record, "modifiedAt"), content: requireString(record, "content"), truncated: requireBoolean(record, "truncated"), binary: requireBoolean(record, "binary") };
 }
 
 function parseGitStatusResponse(value: unknown): GitStatusResponse {
@@ -370,9 +372,20 @@ function parseGitStatusFile(value: unknown): GitStatusFile {
 }
 
 function parseGitFileState(value: unknown): GitFileState {
-  if (typeof value !== "string") throw new Error("Expected git file state");
-  if (!["unmodified", "modified", "added", "deleted", "renamed", "copied", "untracked", "ignored", "conflicted"].includes(value)) throw new Error("Invalid git file state");
-  return value as GitFileState;
+  switch (value) {
+    case "unmodified":
+    case "modified":
+    case "added":
+    case "deleted":
+    case "renamed":
+    case "copied":
+    case "untracked":
+    case "ignored":
+    case "conflicted":
+      return value;
+    default:
+      throw new Error("Invalid git file state");
+  }
 }
 
 function parseGitDiffResponse(value: unknown): GitDiffResponse {

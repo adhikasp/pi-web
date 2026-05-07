@@ -86,11 +86,11 @@ export class ChatView extends LitElement {
     const olderCount = this.messageStart;
     const fullHistory = olderCount <= 0
       ? "full history loaded"
-      : `${olderCount} older not loaded · ${loadedPercent}% loaded`;
+      : `${String(olderCount)} older not loaded · ${String(loadedPercent)}% loaded`;
     return html`
       <div class="history-indicator">
         <div>${fullHistory}</div>
-        <div>loaded scroll: ${this.loadedScrollPercent}% from top</div>
+        <div>loaded scroll: ${String(this.loadedScrollPercent)}% from top</div>
       </div>
     `;
   }

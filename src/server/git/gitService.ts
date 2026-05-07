@@ -88,6 +88,7 @@ function parseStatus(raw: string): GitStatusResponse {
 }
 
 function stateFor(code: string | undefined): GitFileState {
+  if (code === undefined) return "unmodified";
   switch (code) {
     case ".": return "unmodified";
     case "M": return "modified";

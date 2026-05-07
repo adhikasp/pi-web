@@ -1,6 +1,6 @@
 # 01. Fix lint and add CI scripts
 
-Status: pending
+Status: completed
 
 Make the hygiene baseline green and easy to run locally/CI:
 

@@ -29,8 +29,8 @@ export class WorkspacePanel extends LitElement {
     return html`
       <header>
         <div class="tabs">
-          <button class=${this.tool === "files" ? "selected" : ""} @click=${() => this.onSelectTool("files")}>Files</button>
-          <button class=${this.tool === "git" ? "selected" : ""} @click=${() => this.onSelectTool("git")}>Git</button>
+          <button class=${this.tool === "files" ? "selected" : ""} @click=${() => { this.onSelectTool("files"); }}>Files</button>
+          <button class=${this.tool === "git" ? "selected" : ""} @click=${() => { this.onSelectTool("git"); }}>Git</button>
         </div>
         <small title=${this.workspace.path}>${this.workspace.label}</small>
       </header>
@@ -58,19 +58,25 @@ export class WorkspacePanel extends LitElement {
 
   private renderTreeEntry(entry: FileTreeEntry, depth: number): TemplateResult {
     const children = this.expandedDirs[entry.path];
+    const hasChildren = children !== undefined;
     return html`
-      <button class="row" style=${`--depth:${depth}`} @click=${() => entry.type === "directory" ? this.onExpandDir(entry.path) : this.onSelectFile(entry.path)}>
-        <span>${entry.type === "directory" ? (children ? "▾" : "▸") : "·"}</span>
+      <button class="row" style=${`--depth:${String(depth)}`} @click=${() => { this.selectTreeEntry(entry); }}>
+        <span>${entry.type === "directory" ? (hasChildren ? "▾" : "▸") : "·"}</span>
         <span>${entry.name}</span>
       </button>
-      ${children ? children.map((child) => this.renderTreeEntry(child, depth + 1)) : null}
+      ${hasChildren ? children.map((child) => this.renderTreeEntry(child, depth + 1)) : null}
     `;
+  }
+
+  private selectTreeEntry(entry: FileTreeEntry): void {
+    if (entry.type === "directory") this.onExpandDir(entry.path);
+    else this.onSelectFile(entry.path);
   }
 
   private renderFileViewer() {
     const file = this.selectedFileContent;
-    if (!this.selectedFilePath) return html`<p class="muted">Select a file.</p>`;
-    if (!file) return html`<p class="muted">Loading ${this.selectedFilePath}…</p>`;
+    if (this.selectedFilePath === undefined || this.selectedFilePath === "") return html`<p class="muted">Select a file.</p>`;
+    if (file === undefined) return html`<p class="muted">Loading ${this.selectedFilePath}…</p>`;
     if (file.binary) return html`<p class="muted">Binary file: ${file.path}</p>`;
     return html`
       <div class="viewer-header"><strong>${file.path}</strong><small>${file.language ?? "text"}${file.truncated ? " · truncated" : ""}</small></div>
@@ -88,10 +94,10 @@ export class WorkspacePanel extends LitElement {
       </section>
       <section class="split">
         <div class="list">
-          ${status === undefined ? html`<p class="muted">No status loaded.</p>` : status.isGitRepo === false ? html`<p class="muted">Not a git repository.</p>` : html`
-            <p class="summary">${status.branch ?? "detached"}${status.ahead || status.behind ? ` · ↑${status.ahead ?? 0} ↓${status.behind ?? 0}` : ""}</p>
+          ${status === undefined ? html`<p class="muted">No status loaded.</p>` : !status.isGitRepo ? html`<p class="muted">Not a git repository.</p>` : html`
+            <p class="summary">${this.gitSummary(status)}</p>
             ${status.files.length === 0 ? html`<p class="muted">No changes.</p>` : status.files.map((file) => html`
-              <button class="row ${this.selectedDiffPath === file.path ? "selected" : ""}" @click=${() => this.onSelectDiff(file.path)}>
+              <button class="row ${this.selectedDiffPath === file.path ? "selected" : ""}" @click=${() => { this.onSelectDiff(file.path); }}>
                 <span>${stateLabel(file.index, file.workingTree)}</span>
                 <span>${file.path}</span>
               </button>
@@ -106,13 +112,20 @@ export class WorkspacePanel extends LitElement {
   }
 
   private renderDiffViewer() {
-    if (!this.selectedDiffPath) return html`<p class="muted">Select a changed file.</p>`;
+    if (this.selectedDiffPath === undefined || this.selectedDiffPath === "") return html`<p class="muted">Select a changed file.</p>`;
     const diff = this.selectedDiff;
-    if (!diff) return html`<p class="muted">Loading diff…</p>`;
+    if (diff === undefined) return html`<p class="muted">Loading diff…</p>`;
     return html`
       <div class="viewer-header"><strong>${diff.path ?? "diff"}</strong><small>${diff.staged ? "staged" : "unstaged"}${diff.truncated ? " · truncated" : ""}</small></div>
-      <code-viewer .content=${diff.diff || "No unstaged diff."}></code-viewer>
+      <code-viewer .content=${diff.diff !== "" ? diff.diff : "No unstaged diff."}></code-viewer>
     `;
+  }
+
+  private gitSummary(status: GitStatusResponse): string {
+    const branch = status.branch ?? "detached";
+    const ahead = status.ahead ?? 0;
+    const behind = status.behind ?? 0;
+    return ahead === 0 && behind === 0 ? branch : `${branch} · ↑${String(ahead)} ↓${String(behind)}`;
   }
 
   static override styles = workspacePanelStyles;

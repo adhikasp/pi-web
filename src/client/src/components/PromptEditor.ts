@@ -208,7 +208,7 @@ export class PromptEditor extends LitElement {
 function fileInsertText(path: string, pathMode: boolean, quoted: boolean): string {
   const prefix = pathMode ? "" : "@";
   if (!quoted && !path.includes(" ")) return `${prefix}${path}`;
-  return `${prefix}\"${path}\"`;
+  return `${prefix}"${path}"`;
 }
 
 function emptySlashCommands(): SlashCommand[] {

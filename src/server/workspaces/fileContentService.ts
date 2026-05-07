@@ -41,7 +41,7 @@ function isProbablyBinary(buffer: Buffer): boolean {
 
 function languageForPath(path: string): { language?: string } {
   const ext = path.split(".").pop()?.toLowerCase();
-  const language = ext === undefined ? undefined : ({
+  const languages: Record<string, string | undefined> = {
     ts: "typescript",
     tsx: "typescript",
     js: "javascript",
@@ -56,6 +56,7 @@ function languageForPath(path: string): { language?: string } {
     sh: "shell",
     yml: "yaml",
     yaml: "yaml",
-  } as Record<string, string | undefined>)[ext];
+  };
+  const language = ext === undefined ? undefined : languages[ext];
   return language === undefined ? {} : { language };
 }
