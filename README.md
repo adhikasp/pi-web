@@ -38,6 +38,64 @@ npm run dev:client
 
 Then restart `dev:web` or `dev:client` freely; active Pi sessions continue in `dev:sessiond`.
 
+### systemd user services for local development
+
+This repository is commonly run as two systemd user services:
+
+- `pi-web-sessiond.service`: runs `npm run start:sessiond` without autoreload or automatic restart.
+- `pi-web-ui-dev.service`: runs `npm run dev:web` and `npm run dev:client` together, giving backend autoreload via `tsx watch` and Vite UI HMR.
+
+Example units live in `~/.config/systemd/user/` on the development host:
+
+```ini
+# ~/.config/systemd/user/pi-web-sessiond.service
+[Unit]
+Description=Pi Web session daemon
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/dev/pi-web
+ExecStart=/bin/bash -lc 'exec npm run start:sessiond'
+Restart=no
+
+[Install]
+WantedBy=default.target
+```
+
+```ini
+# ~/.config/systemd/user/pi-web-ui-dev.service
+[Unit]
+Description=Pi Web UI dev server
+After=pi-web-sessiond.service
+Wants=pi-web-sessiond.service
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/dev/pi-web
+ExecStart=/bin/bash -lc 'trap "kill 0" EXIT; npm run dev:web & npm run dev:client & wait'
+Restart=no
+
+[Install]
+WantedBy=default.target
+```
+
+After creating or changing units:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now pi-web-sessiond.service
+systemctl --user enable --now pi-web-ui-dev.service
+```
+
+Useful logs:
+
+```bash
+journalctl --user -u pi-web-sessiond.service -f
+journalctl --user -u pi-web-ui-dev.service -f
+```
+
+Because `sessiond` is intentionally not watched or restarted automatically, code changes that affect `src/server/sessiond.ts` or session runtime ownership require manually restarting `pi-web-sessiond.service`. Restarting only the UI dev service is enough for changes in the web/API/UI processes.
+
 For deployment:
 
 ```bash
