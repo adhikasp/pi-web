@@ -19,7 +19,13 @@ export class GitController {
       const status = await api.gitStatus(project.id, workspace.id);
       this.setState({ gitStatus: status, gitStale: false, error: "" });
       const selectedDiffPath = this.getState().selectedDiffPath;
-      if (selectedDiffPath !== undefined && status.files.some((file) => file.path === selectedDiffPath)) await this.refreshDiff(selectedDiffPath);
+      if (selectedDiffPath !== undefined) {
+        if (status.files.some((file) => file.path === selectedDiffPath)) await this.refreshDiff(selectedDiffPath);
+        else {
+          this.setState({ selectedDiffPath: undefined, selectedDiff: undefined });
+          this.updateUrl();
+        }
+      }
     } catch (error) {
       this.setState({ error: String(error) });
     }
