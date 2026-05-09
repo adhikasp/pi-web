@@ -195,11 +195,11 @@ export const formattedTextStyles = css`
   li + li { margin-top: 3px; }
   code { border: 1px solid #30363d; border-radius: 4px; background: #0d1117; padding: 1px 4px; font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .code-block-wrapper { position: relative; }
-  .code-block-wrapper pre { margin: 0; padding-right: 58px; }
+  .code-block-wrapper pre { margin: 0; padding-right: 40px; }
   pre { border: 1px solid #30363d; border-radius: 8px; background: #0d1117; padding: 10px; overflow: auto; }
   pre code { border: 0; padding: 0; background: transparent; }
-  .code-copy-button { position: absolute; top: 6px; right: 6px; z-index: 1; border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #8b949e; padding: 3px 7px; font: 12px system-ui, sans-serif; cursor: pointer; }
-  .code-copy-button:hover { color: #e6edf3; border-color: #58a6ff; }
+  .code-copy-button { position: absolute; top: 6px; right: 6px; z-index: 1; display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid #30363d; border-radius: 6px; background: #161b22; color: #8b949e; padding: 0; font: 14px system-ui, sans-serif; line-height: 1; cursor: pointer; }
+  .code-copy-button:hover, .code-copy-button:focus { color: #e6edf3; border-color: #58a6ff; }
   blockquote { border-left: 3px solid #30363d; padding-left: 10px; color: #8b949e; }
   a { color: #58a6ff; }
   h1, h2, h3, h4 { margin: 14px 0 8px; line-height: 1.2; }

@@ -26,8 +26,12 @@ export class FormattedText extends LitElement {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "code-copy-button";
-      button.textContent = "Copy";
+      button.title = "Copy code block";
       button.setAttribute("aria-label", "Copy code block");
+      const icon = document.createElement("span");
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "⧉";
+      button.append(icon);
       element.before(wrapper);
       wrapper.append(element, button);
     });
@@ -44,10 +48,18 @@ export class FormattedText extends LitElement {
 
   private async copyCode(text: string, button: HTMLButtonElement): Promise<void> {
     const ok = await writeClipboard(text);
-    button.textContent = ok ? "Copied" : "Failed";
+    this.setCopyButtonState(button, ok ? "copied" : "failed");
     window.setTimeout(() => {
-      button.textContent = "Copy";
+      this.setCopyButtonState(button, "idle");
     }, 1200);
+  }
+
+  private setCopyButtonState(button: HTMLButtonElement, state: "idle" | "copied" | "failed"): void {
+    const icon = button.querySelector("span");
+    if (icon !== null) icon.textContent = state === "copied" ? "✓" : "⧉";
+    const label = state === "copied" ? "Copied code block" : state === "failed" ? "Failed to copy code block" : "Copy code block";
+    button.title = label;
+    button.setAttribute("aria-label", label);
   }
 
   static override styles = formattedTextStyles;
