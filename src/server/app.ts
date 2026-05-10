@@ -13,6 +13,7 @@ import { registerSessionProxyRoutes } from "./sessiond/sessionProxyRoutes.js";
 import { registerWorkspaceExplorerRoutes } from "./workspaceExplorerRoutes.js";
 import { registerGitRoutes } from "./gitRoutes.js";
 import { registerTerminalProxyRoutes } from "./terminalProxyRoutes.js";
+import { PiWebPluginService } from "./piWebPluginService.js";
 
 export interface AppDependencies {
   projects?: ProjectService;
@@ -27,6 +28,15 @@ export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInsta
 
   const projects = deps.projects ?? new ProjectService(new ProjectStore());
   const workspaces = deps.workspaces ?? new WorkspaceService();
+  const piWebPlugins = new PiWebPluginService();
+
+  app.get("/pi-web-plugins/manifest.json", async () => piWebPlugins.manifest());
+
+  app.get<{ Params: { pluginId: string; "*": string } }>("/pi-web-plugins/:pluginId/*", async (request, reply) => {
+    const asset = await piWebPlugins.readAsset(request.params.pluginId, request.params["*"]);
+    if (asset === undefined) return reply.code(404).send({ error: "Plugin asset not found" });
+    return reply.type(asset.contentType).send(asset.content);
+  });
 
   app.get("/api/projects", async () => projects.list());
 

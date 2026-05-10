@@ -29,6 +29,7 @@ export default defineConfig({
     ...(config.allowedHosts === undefined ? {} : { allowedHosts: config.allowedHosts }),
     proxy: {
       "/api": { target: `http://localhost:${String(apiPort)}`, ws: true },
+      "/pi-web-plugins": { target: `http://localhost:${String(apiPort)}` },
     },
   },
 });

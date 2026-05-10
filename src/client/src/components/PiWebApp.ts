@@ -11,7 +11,7 @@ import { WorkspaceController } from "../controllers/workspaceController";
 import { KeyboardShortcutDispatcher } from "../keyboardShortcuts";
 import type { QualifiedContributionId, QualifiedWorkspacePanelContribution, PluginRuntimeContext } from "../plugins/types";
 import { corePlugin } from "../plugins/core";
-import { examplePlugin } from "../plugins/example";
+import { loadExternalPlugins } from "../plugins/external";
 import { PluginRegistry } from "../plugins/registry";
 import { queryNamespace, readNamespacedString } from "../namespacedQueryArgs";
 import { readRoute, writeRoute } from "../route";
@@ -76,6 +76,7 @@ export class PiWebApp extends LitElement {
     window.addEventListener("popstate", this.onPopState);
     window.addEventListener("keydown", this.onKeyDown);
     this.sessions.connectStatusUpdates();
+    void this.loadExternalPlugins();
     void this.loadProjectsAndRestoreRoute();
   }
 
@@ -215,6 +216,15 @@ export class PiWebApp extends LitElement {
     return this.plugins.getActions(this.createPluginRuntimeContext());
   }
 
+  private async loadExternalPlugins(): Promise<void> {
+    try {
+      for (const plugin of await loadExternalPlugins()) this.plugins.register(plugin);
+      this.requestUpdate();
+    } catch (error) {
+      console.warn("Failed to load external Pi Web plugins", error);
+    }
+  }
+
   private createPluginRuntimeContext(): PluginRuntimeContext {
     return {
       state: this.state,
@@ -272,7 +282,6 @@ export class PiWebApp extends LitElement {
 function createPluginRegistry(): PluginRegistry {
   const registry = new PluginRegistry();
   registry.register(corePlugin);
-  registry.register(examplePlugin);
   return registry;
 }
 

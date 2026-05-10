@@ -16,6 +16,7 @@
     "README.md",
     "LICENSE",
     "extensions",
+    "pi-web-plugins",
     "docs/assets"
   ],
   "scripts": {
