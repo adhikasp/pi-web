@@ -1,13 +1,16 @@
 import { LitElement, html } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
-import { groupChatMessages, summarizeChatGroup } from "../chatGroups";
+import { groupChatMessages, summarizeChatGroup, type ChatGroup } from "../chatGroups";
 import { capturePrependScrollAnchor, PREPEND_RESTORE_SETTLE_FRAMES, restorePrependScrollAnchor, type PrependScrollAnchor } from "../chatScrollAnchoring";
 import { shouldRequestEarlierMessages } from "../chatHistoryLoading";
 import type { SessionActivity, SessionStatus } from "../api";
 import type { ChatLine, ChatPart } from "./shared";
 import { chatStyles } from "./shared";
 import "./FormattedText";
+
+const shortTimestampFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const fullTimestampFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" });
 
 function isScrollPosition(value: unknown): value is { index?: number; key?: string; offset: number } {
   return typeof value === "object"
@@ -39,6 +42,13 @@ export class ChatView extends LitElement {
   private suppressScrollSave = false;
   private suppressLoadMoreRequests = false;
   private saveScrollTimer?: number;
+  private loadMoreCheckFrame: number | undefined;
+  private scrollToBottomFrame: number | undefined;
+  private groupedMessagesInput?: ChatLine[];
+  private groupedMessagesStart = 0;
+  private groupedMessagesCache: ChatGroup[] = [];
+  private readonly messageMetaCache = new WeakMap<ChatLine, { short: string; full: string }>();
+  private readonly messageCopyTextCache = new WeakMap<ChatLine, string>();
   private lastScrollTop = 0;
   private lastClientHeight = 0;
   private touchStartY: number | undefined;
@@ -60,6 +70,8 @@ export class ChatView extends LitElement {
 
   override disconnectedCallback(): void {
     window.clearTimeout(this.saveScrollTimer);
+    if (this.loadMoreCheckFrame !== undefined) cancelAnimationFrame(this.loadMoreCheckFrame);
+    if (this.scrollToBottomFrame !== undefined) cancelAnimationFrame(this.scrollToBottomFrame);
     window.removeEventListener("resize", this.onViewportResize);
     window.visualViewport?.removeEventListener("resize", this.onViewportResize);
     super.disconnectedCallback();
@@ -90,7 +102,7 @@ export class ChatView extends LitElement {
         <div class="chat" @scroll=${() => { this.onScroll(); }} @wheel=${(event: WheelEvent) => { this.onWheel(event); }} @touchstart=${(event: TouchEvent) => { this.onTouchStart(event); }} @touchmove=${(event: TouchEvent) => { this.onTouchMove(event); }}>
           ${this.renderHistoryBoundary()}
           ${repeat(
-            groupChatMessages(this.messages, this.messageStart),
+            this.groupedMessages(),
             (group) => group.kind === "message" ? this.messageAnchorKey(group.index) : this.groupAnchorKey(group.endIndex),
             (group) => group.kind === "message"
               ? this.renderMessage(group.message, group.index)
@@ -102,6 +114,14 @@ export class ChatView extends LitElement {
         ${this.renderActivityDock()}
       </div>
     `;
+  }
+
+  private groupedMessages(): ChatGroup[] {
+    if (this.groupedMessagesInput === this.messages && this.groupedMessagesStart === this.messageStart) return this.groupedMessagesCache;
+    this.groupedMessagesInput = this.messages;
+    this.groupedMessagesStart = this.messageStart;
+    this.groupedMessagesCache = groupChatMessages(this.messages, this.messageStart);
+    return this.groupedMessagesCache;
   }
 
   private renderActivityDock() {
@@ -277,11 +297,15 @@ export class ChatView extends LitElement {
   }
 
   private messageCopyText(message: ChatLine): string {
-    return message.parts
+    const cached = this.messageCopyTextCache.get(message);
+    if (cached !== undefined) return cached;
+    const text = message.parts
       .filter((part): part is Extract<ChatPart, { type: "text" }> => part.type === "text")
       .map((part) => part.text.trim())
-      .filter((text) => text !== "")
+      .filter((partText) => partText !== "")
       .join("\n\n");
+    this.messageCopyTextCache.set(message, text);
+    return text;
   }
 
   private async copyMessage(message: ChatLine, key: string, event: MouseEvent): Promise<void> {
@@ -304,22 +328,27 @@ export class ChatView extends LitElement {
   }
 
   private messageMetaLabel(message: ChatLine): { short: string; full: string } {
+    const cached = this.messageMetaCache.get(message);
+    if (cached !== undefined) return cached;
     const timestamp = message.meta?.timestamp;
     const model = this.modelLabel(message);
-    if (timestamp === undefined && model === undefined) return { short: "no info", full: "No Pi message metadata available" };
+    if (timestamp === undefined && model === undefined) {
+      const empty = { short: "no info", full: "No Pi message metadata available" };
+      this.messageMetaCache.set(message, empty);
+      return empty;
+    }
     const time = timestamp === undefined ? undefined : this.formatTimestamp(timestamp);
     const parts = [time?.short, model].filter((part): part is string => part !== undefined && part !== "");
     const fullParts = [time?.full, model === undefined ? undefined : `Model: ${model}`].filter((part): part is string => part !== undefined && part !== "");
-    return { short: parts.join(" · "), full: fullParts.join(" · ") };
+    const label = { short: parts.join(" · "), full: fullParts.join(" · ") };
+    this.messageMetaCache.set(message, label);
+    return label;
   }
 
   private formatTimestamp(timestamp: string): { short: string; full: string } | undefined {
     const date = new Date(timestamp);
     if (!Number.isFinite(date.getTime())) return undefined;
-    return {
-      short: new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date),
-      full: new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium" }).format(date),
-    };
+    return { short: shortTimestampFormatter.format(date), full: fullTimestampFormatter.format(date) };
   }
 
   private modelLabel(message: ChatLine): string | undefined {
@@ -415,7 +444,9 @@ export class ChatView extends LitElement {
   }
 
   private requestLoadMoreIfNeeded(): void {
-    requestAnimationFrame(() => {
+    if (this.loadMoreCheckFrame !== undefined) return;
+    this.loadMoreCheckFrame = requestAnimationFrame(() => {
+      this.loadMoreCheckFrame = undefined;
       if (this.suppressLoadMoreRequests) return;
       const chat = this.chat;
       if (!chat) return;
@@ -459,7 +490,9 @@ export class ChatView extends LitElement {
   }
 
   private scrollToBottom() {
-    requestAnimationFrame(() => {
+    if (this.scrollToBottomFrame !== undefined) return;
+    this.scrollToBottomFrame = requestAnimationFrame(() => {
+      this.scrollToBottomFrame = undefined;
       const chat = this.chat;
       if (!chat) return;
       this.withSuppressedScrollSave(() => {

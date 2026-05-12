@@ -65,12 +65,17 @@ export class PiWebApp extends LitElement {
   private readonly keyboard = new KeyboardShortcutDispatcher();
   private readonly realtime = new RealtimeSocket();
   private readonly activeTerminalIds = new Set<string>();
+  private readonly mobileNavigationMedia = typeof window !== "undefined" && "matchMedia" in window ? window.matchMedia("(max-width: 760px)") : undefined;
   private terminalAutoStartWorkspaceId: string | undefined;
   private readonly plugins = createPluginRegistry();
+  @state() private isMobileNavigationLayout = this.mobileNavigationMedia?.matches ?? false;
   private readonly onPopState = () => void this.withChatScrollTransition(() => this.restoreRoute(false));
   private readonly onFocus = () => { void this.sessions.refreshSelectedSession(); };
   private readonly onVisibilityChange = () => {
     if (document.visibilityState === "visible") void this.sessions.refreshSelectedSession();
+  };
+  private readonly onMobileNavigationMediaChange = (event: MediaQueryListEvent) => {
+    this.isMobileNavigationLayout = event.matches;
   };
   private readonly onKeyDown = (event: KeyboardEvent) => {
     if (this.keyboard.handle(event, this.getActions())) {
@@ -85,6 +90,7 @@ export class PiWebApp extends LitElement {
     window.addEventListener("focus", this.onFocus);
     document.addEventListener("visibilitychange", this.onVisibilityChange);
     window.addEventListener("keydown", this.onKeyDown);
+    this.mobileNavigationMedia?.addEventListener("change", this.onMobileNavigationMediaChange);
     this.connectRealtime();
     void this.loadExternalPlugins();
     void this.loadProjectsAndRestoreRoute();
@@ -95,6 +101,7 @@ export class PiWebApp extends LitElement {
     window.removeEventListener("focus", this.onFocus);
     document.removeEventListener("visibilitychange", this.onVisibilityChange);
     window.removeEventListener("keydown", this.onKeyDown);
+    this.mobileNavigationMedia?.removeEventListener("change", this.onMobileNavigationMediaChange);
     this.keyboard.reset();
     this.sessions.dispose();
     this.realtime.close();
@@ -103,6 +110,7 @@ export class PiWebApp extends LitElement {
   }
 
   private setState(patch: Partial<AppState>) {
+    if (!patchChangesState(this.state, patch)) return;
     const previous = this.state;
     this.state = { ...this.state, ...patch };
     this.handleActivityTransition(previous, this.state);
@@ -376,7 +384,7 @@ export class PiWebApp extends LitElement {
     const state = this.state;
     return html`
       <div class=${`shell ${state.mainView === "navigation" ? "navigation-view" : state.mainView === "chat" ? "chat-view" : "workspace-view"}`}>
-        <aside>${this.renderNavigationPanel(false)}</aside>
+        <aside>${this.isMobileNavigationLayout ? null : this.renderNavigationPanel(false)}</aside>
         <main class=${state.mainView === "chat" ? "chat-view" : state.mainView === "navigation" ? "navigation-view" : "workspace-view"}>
           <div class="mobile-tabs">
             <button class=${state.mainView === "navigation" ? "mobile-navigation-tab selected" : "mobile-navigation-tab"} @click=${() => { this.selectMainView("navigation"); }}>Sessions</button>
@@ -386,7 +394,7 @@ export class PiWebApp extends LitElement {
             `)}
           </div>
           ${state.error ? html`<div class="error">${state.error}</div>` : null}
-          <div class="mobile-navigation-panel">${this.renderNavigationPanel(true)}</div>
+          <div class="mobile-navigation-panel">${this.isMobileNavigationLayout ? this.renderNavigationPanel(true) : null}</div>
           ${state.selectedSession ? html`
             <chat-view .sessionId=${state.selectedSession.id} .messages=${state.messages} .messageStart=${state.messagePageStart} .messageTotal=${state.messagePageTotal} .hasMore=${state.messagePageStart > 0} .loadingMore=${state.isLoadingEarlierMessages} .isReceivingPartialStream=${state.isReceivingPartialStream} .isCompacting=${state.status?.isCompacting === true} .pendingMessageCount=${state.status?.pendingMessageCount ?? 0} .status=${state.status} .activity=${state.activity} .onLoadMore=${() => this.withChatPrependTransition(() => this.sessions.loadEarlierMessages())}></chat-view>
             <prompt-editor .sessionId=${state.selectedSession.id} .cwd=${state.selectedWorkspace?.path} .disabled=${state.selectedSession.archived === true} .canSteer=${state.status?.isStreaming === true} .isCompacting=${state.status?.isCompacting === true} .canStop=${state.status?.isStreaming === true || state.status?.isBashRunning === true || state.status?.isCompacting === true || (state.status?.pendingMessageCount ?? 0) > 0} .status=${state.status} .onSend=${(text: string, streamingBehavior?: "steer" | "followUp") => this.sessions.send(text, streamingBehavior)} .onStop=${() => this.sessions.stopActiveWork()} .onSelectModel=${() => { void this.openModelDialog(); }} .onSelectThinking=${() => { void this.openThinkingDialog(); }}></prompt-editor>
@@ -410,6 +418,10 @@ function createPluginRegistry(): PluginRegistry {
   const registry = new PluginRegistry();
   registry.register(corePlugin);
   return registry;
+}
+
+function patchChangesState(state: AppState, patch: Partial<AppState>): boolean {
+  return Object.entries(patch).some(([key, value]) => Reflect.get(state, key) !== value);
 }
 
 function isActive(status: AppState["status"]): boolean {
