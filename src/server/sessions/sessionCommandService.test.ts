@@ -114,4 +114,34 @@ describe("SessionCommandService", () => {
     expect(active.runtime.fork).toHaveBeenCalledWith("newest");
     await expect(service.respond("s1", result.requestId, "newest")).resolves.toEqual({ type: "unsupported", message: "Command request expired" });
   });
+
+  it("rejects fork and clone while the session has active work", async () => {
+    const active = activeSession({ isStreaming: true });
+    const service = new SessionCommandService(() => getActive(active), vi.fn(), { publish: vi.fn() } as never);
+
+    await expect(service.run("s1", "/fork")).resolves.toEqual({
+      type: "unsupported",
+      message: "Cannot fork while the session is active. Stop current activity before forking.",
+    });
+    await expect(service.run("s1", "/clone")).resolves.toEqual({
+      type: "unsupported",
+      message: "Cannot clone while the session is active. Stop current activity before cloning.",
+    });
+    expect(active.runtime.fork).not.toHaveBeenCalled();
+  });
+
+  it("rejects fork responses if the session becomes active after choosing fork", async () => {
+    const active = activeSession();
+    const service = new SessionCommandService(() => getActive(active), vi.fn(), { publish: vi.fn() } as never);
+
+    const result = await service.run("s1", "/fork");
+    if (result.type !== "select") throw new Error("Expected select result");
+    (active.runtime.session as Record<string, unknown>)["isStreaming"] = true;
+
+    await expect(service.respond("s1", result.requestId, "m1")).resolves.toEqual({
+      type: "unsupported",
+      message: "Cannot fork while the session is active. Stop current activity before forking.",
+    });
+    expect(active.runtime.fork).not.toHaveBeenCalled();
+  });
 });

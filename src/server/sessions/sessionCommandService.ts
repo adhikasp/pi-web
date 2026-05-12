@@ -52,6 +52,7 @@ export class SessionCommandService {
     this.pendingSelects.delete(requestId);
 
     const active = await this.getActive(sessionId);
+    if (sessionHasActiveWork(active.runtime.session)) return forkActiveUnsupported("fork");
     const result = await active.runtime.fork(value);
     if (result.cancelled) return { type: "done", message: "Fork cancelled" };
     return { type: "done", message: "Session forked", session: clientSessionFromRuntime(active.runtime) };
@@ -84,6 +85,7 @@ export class SessionCommandService {
   }
 
   private async clone(active: ActiveSession): Promise<ClientCommandResult> {
+    if (sessionHasActiveWork(active.runtime.session)) return forkActiveUnsupported("clone");
     const leafId = active.runtime.session.sessionManager.getLeafId();
     if (leafId === null || leafId === "") return { type: "unsupported", message: "Cannot clone: no current session entry" };
     const result = await active.runtime.fork(leafId, { position: "at" });
@@ -92,6 +94,7 @@ export class SessionCommandService {
   }
 
   private fork(active: ActiveSession): ClientCommandResult {
+    if (sessionHasActiveWork(active.runtime.session)) return forkActiveUnsupported("fork");
     const messages = active.runtime.session.getUserMessagesForForking();
     if (!messages.length) return { type: "unsupported", message: "No user messages to fork from" };
     const requestId = crypto.randomUUID();
@@ -125,6 +128,14 @@ function clientSessionFromRuntime(runtime: AgentSessionRuntime): ClientSession {
     firstMessage: "",
     ...(parentSessionPath === undefined ? {} : { parentSessionPath }),
   };
+}
+
+function sessionHasActiveWork(session: AgentSession): boolean {
+  return session.isStreaming || session.isBashRunning || session.isCompacting || session.pendingMessageCount > 0;
+}
+
+function forkActiveUnsupported(command: "fork" | "clone"): ClientCommandResult {
+  return { type: "unsupported", message: `Cannot ${command} while the session is active. Stop current activity before ${command === "fork" ? "forking" : "cloning"}.` };
 }
 
 function formatSessionStats(session: AgentSession): string {
