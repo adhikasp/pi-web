@@ -81,8 +81,8 @@ function renderStatusPanel(html: HtmlTemplateTag, state: AppState): TemplateResu
   const messages = status.messages;
   return html`
     <style>
-      .pi-web-status { gap: 14px; padding: 12px; overflow: auto; }
-      .pi-web-status section { display: grid; gap: 8px; }
+      .viewer.pi-web-status { flex: 1 1 auto; min-height: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px; padding: 12px; overflow-y: auto; overflow-x: hidden; }
+      .viewer.pi-web-status section { flex: 0 0 auto; min-width: 0; display: grid; gap: 8px; }
       .pi-web-message { display: grid; gap: 5px; border: 1px solid var(--pi-border); border-radius: 8px; padding: 10px; background: var(--pi-surface); }
       .pi-web-message.warning { border-color: var(--pi-warning-border); background: var(--pi-warning-surface); }
       .pi-web-message.error { border-color: var(--pi-danger); }
@@ -90,9 +90,13 @@ function renderStatusPanel(html: HtmlTemplateTag, state: AppState): TemplateResu
       .pi-web-message-title span { color: var(--pi-muted); font-size: 12px; text-transform: uppercase; }
       .pi-web-version-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; border-bottom: 1px solid var(--pi-border-muted); padding: 6px 0; }
       .pi-web-version-row small { grid-column: 1 / -1; color: var(--pi-muted); }
-      .pi-web-command { display: grid; grid-template-columns: minmax(90px, auto) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+      .pi-web-command { min-width: 0; display: grid; grid-template-columns: minmax(90px, auto) minmax(0, 1fr) auto; gap: 8px; align-items: center; }
       .pi-web-command code { overflow: auto; border: 1px solid var(--pi-border-muted); border-radius: 6px; background: var(--pi-bg); padding: 5px 7px; white-space: nowrap; }
       .pi-web-meta { display: grid; gap: 2px; color: var(--pi-muted); font-size: 12px; }
+      @media (max-width: 520px) {
+        .pi-web-command { grid-template-columns: minmax(0, 1fr) auto; }
+        .pi-web-command > span { grid-column: 1 / -1; }
+      }
     </style>
     <section class="toolbar"><strong>Pi Web</strong><span class="stale">beta</span>${messages.length > 0 ? html`<span class="stale">${String(messages.length)}</span>` : null}</section>
     <section class="viewer pi-web-status">

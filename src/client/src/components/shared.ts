@@ -63,7 +63,7 @@ export const appStyles = css`
   .context-bar::after { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--pi-shadow-strong) 55%, transparent) 0%, transparent 100%); }
   .context-bar.can-scroll-left::before, .context-bar.can-scroll-right::after { opacity: 1; }
   .context-bar-label { display: none; }
-  .context-items { flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch; gap: 5px; margin: 0; padding: 0 8px; list-style: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-padding-inline: 8px; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+  .context-items { flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch; gap: 5px; margin: 0; padding: 0 8px; list-style: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-padding-inline: 8px; scrollbar-width: thin; }
   .context-chip { flex: 0 0 auto; min-width: 0; display: inline-flex; align-items: baseline; gap: 5px; border: 1px solid var(--pi-border-muted); border-radius: 999px; background: var(--pi-surface); color: var(--pi-text); padding: 4px 8px; }
   .context-chip.empty { border-style: dashed; color: var(--pi-muted); }
   .context-kind { display: none; }
@@ -73,7 +73,7 @@ export const appStyles = css`
   .mobile-tabs-frame::before { left: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--pi-shadow-strong) 55%, transparent) 0%, transparent 100%); }
   .mobile-tabs-frame::after { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--pi-shadow-strong) 55%, transparent) 0%, transparent 100%); }
   .mobile-tabs-frame.can-scroll-left::before, .mobile-tabs-frame.can-scroll-right::after { opacity: 1; }
-  .mobile-tabs { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+  .mobile-tabs { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; }
   .mobile-tabs button { flex: 0 0 auto; white-space: nowrap; }
   .mobile-navigation-tab, .mobile-navigation-panel { display: none; }
   .mobile-tabs button.selected { border-color: var(--pi-accent); background: var(--pi-selection-bg); }
@@ -123,13 +123,13 @@ export const workspacePanelStyles = css`
   .workspace-header-scroll-frame::before { left: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--pi-shadow-strong) 55%, transparent) 0%, transparent 100%); }
   .workspace-header-scroll-frame::after { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--pi-shadow-strong) 55%, transparent) 0%, transparent 100%); }
   .workspace-header-scroll-frame.can-scroll-left::before, .workspace-header-scroll-frame.can-scroll-right::after { opacity: 1; }
-  .workspace-header-strip { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; padding: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+  .workspace-header-strip { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; padding: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; }
   .tabs { flex: 0 0 auto; display: flex; gap: 6px; }
   .tabs button { flex: 0 0 auto; white-space: nowrap; }
   button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--pi-border); border-radius: 7px; background: var(--pi-surface); color: var(--pi-text); padding: 5px 7px; cursor: pointer; }
   button.selected { border-color: var(--pi-accent); background: var(--pi-selection-bg); }
   .tab-badge { display: inline-block; min-width: 14px; border: 1px solid var(--pi-success-border); border-radius: 999px; background: var(--pi-success-surface); color: var(--pi-success); padding: 0 5px; font-size: 11px; line-height: 16px; text-align: center; }
-  .panel-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .panel-content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
   small, .muted { color: var(--pi-muted); }
   header small { flex: 0 0 auto; min-width: max-content; overflow: visible; text-overflow: clip; white-space: nowrap; }
   header .workspace-label { width: max-content; max-width: none; overflow: visible; }
@@ -149,7 +149,7 @@ export const workspacePanelStyles = css`
   .row:hover, .row.selected { background: var(--pi-selection-bg); }
   .row span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .summary { margin: 4px 6px 8px; color: var(--pi-muted); }
-  .viewer { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .viewer { min-height: 0; overflow: auto; display: flex; flex-direction: column; }
   .diffs { flex: 1 1 auto; min-height: 0; overflow: auto; display: grid; grid-template-rows: minmax(120px, 1fr) minmax(120px, 1fr); }
   .diffs.single { grid-template-rows: minmax(0, 1fr); }
   .diff-section { min-height: 0; display: flex; flex-direction: column; border-bottom: 1px solid var(--pi-border); }
@@ -382,7 +382,7 @@ export const actionPaletteStyles = css`
   input::placeholder { color: var(--pi-dim); }
   button { border: 0; background: transparent; color: var(--pi-text); cursor: pointer; }
   header button { color: var(--pi-muted); font-size: 22px; padding: 2px 8px; }
-  .options { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+  .options { flex: 1 1 auto; min-height: 0; overflow: auto; }
   .options button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 12px; width: 100%; padding: 10px 12px; border-bottom: 1px solid var(--pi-border-muted); text-align: left; }
   .options button.selected, .options button:hover { background: var(--pi-selection-bg); }
   .main { min-width: 0; }
