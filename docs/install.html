@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Install PI WEB</title>
-    <meta name="description" content="Complete installation guide for Pi Web on Linux, macOS, and Windows WSL." />
+    <meta name="description" content="Complete installation guide for PI WEB on Linux, macOS, and Windows WSL." />
     <meta property="og:title" content="Install PI WEB" />
     <meta property="og:image" content="assets/pi-web-banner.png" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
@@ -25,13 +25,13 @@
   <body>
     <header class="site-header">
       <nav class="container nav" aria-label="Main navigation">
-        <a class="brand" href="./" aria-label="Pi Web home">Pi Web</a>
+        <a class="brand" href="./" aria-label="PI WEB home">PI WEB</a>
         <div class="nav-links">
           <a href="remote-first.html">Remote-first</a>
           <a href="install.html" aria-current="page">Install</a>
           <a href="plugins.html">Plugins</a>
           <a href="faq.html">FAQ</a>
-          <a class="github-link" href="https://github.com/jmfederico/pi-web" aria-label="Pi Web on GitHub">
+          <a class="github-link" href="https://github.com/jmfederico/pi-web" aria-label="PI WEB on GitHub">
             <svg class="github-icon" viewBox="0 0 16 16" aria-hidden="true">
               <path
                 fill="currentColor"
@@ -52,10 +52,10 @@
       <section class="page-hero">
         <div class="container">
           <p class="eyebrow"><span class="pulse"></span> Installation guide</p>
-          <h1>Get Pi Web running where your agents work.</h1>
+          <h1>Get PI WEB running where your agents work.</h1>
           <p>
             The best production-style setup is a Linux machine with user-level systemd services. macOS and Windows WSL
-            are useful too: run the two Pi Web processes manually, or use the installer in WSL when systemd is enabled.
+            are useful too: run the two PI WEB processes manually, or use the installer in WSL when systemd is enabled.
           </p>
         </div>
       </section>
@@ -86,7 +86,7 @@
               </ul>
               <div class="callout warning">
                 <strong>Important PATH detail:</strong>
-                Pi Web services run through your login shell with <code>-lc</code>. Setup that only lives in interactive shell
+                PI WEB services run through your login shell with <code>-lc</code>. Setup that only lives in interactive shell
                 files or prompt hooks may not be visible to services. Run <code>pi-web doctor</code> after installing.
               </div>
             </section>
@@ -125,8 +125,8 @@
 
             <section id="pi-package">
               <h2>Install through Pi</h2>
-              <p>Pi Web is also published as a Pi package. This exposes a <code>/pi-web</code> command inside Pi.</p>
-              <p>When installed this way, <code>/pi-web install</code> can use Pi Web's package-local service entrypoints, so <code>pi-web-server</code> and <code>pi-web-sessiond</code> do not need to be on your shell <code>PATH</code>.</p>
+              <p>PI WEB is also published as a Pi package. This exposes a <code>/pi-web</code> command inside Pi.</p>
+              <p>When installed this way, <code>/pi-web install</code> can use PI WEB's package-local service entrypoints, so <code>pi-web-server</code> and <code>pi-web-sessiond</code> do not need to be on your shell <code>PATH</code>.</p>
               <div class="code-card">
                 <div class="copy-row">
                   <strong>Pi package path</strong>
@@ -145,7 +145,7 @@
             <section id="manual-run">
               <h2>macOS / WSL manual run</h2>
               <p>
-                Pi Web is not Linux-only, but the <code>pi-web install</code> service setup is Linux/systemd-specific. On macOS
+                PI WEB is not Linux-only, but the <code>pi-web install</code> service setup is Linux/systemd-specific. On macOS
                 or WSL without systemd, install the package and run the daemon and web server yourself.
               </p>
               <div class="code-card">
@@ -170,7 +170,7 @@
             <section id="remote-access">
               <h2>Remote access</h2>
               <p>
-                Pi Web binds to <code>127.0.0.1:8504</code> by default. For a remote server, the safest option is an SSH
+                PI WEB binds to <code>127.0.0.1:8504</code> by default. For a remote server, the safest option is an SSH
                 tunnel:
               </p>
               <div class="code-card">
@@ -182,8 +182,8 @@
 <span class="comment"># Open http://127.0.0.1:8504 on your local machine</span></code></pre>
               </div>
               <div class="callout danger">
-                Pi Web is designed for trusted users and trusted server paths. Do not expose it directly to the public
-                internet. If you use a VPN or private network, bind Pi Web to the server's VPN/private IP, such as a
+                PI WEB is designed for trusted users and trusted server paths. Do not expose it directly to the public
+                internet. If you use a VPN or private network, bind PI WEB to the server's VPN/private IP, such as a
                 Tailscale/WireGuard/LAN address, and make sure that network policy limits access. Avoid
                 <code>0.0.0.0</code> unless a firewall, VPN, or authenticated reverse proxy strictly controls the port.
               </div>
@@ -225,7 +225,7 @@
 }</code></pre>
               </div>
               <p>
-                The web server defaults to <code>127.0.0.1:8504</code> and stores Pi Web state in <code>~/.pi-web</code>.
+                The web server defaults to <code>127.0.0.1:8504</code> and stores PI WEB state in <code>~/.pi-web</code>.
               </p>
               <ul>
                 <li><code>PI_WEB_CONFIG</code>: path to a config JSON file. Defaults to <code>~/.config/pi-web/config.json</code>.</li>
@@ -250,7 +250,7 @@
                 <pre id="uninstall-commands"><code><span class="prompt">$</span> pi-web uninstall
 <span class="prompt">$</span> npm uninstall -g @jmfederico/pi-web</code></pre>
               </div>
-              <p>Optional cleanup, if you also want to delete Pi Web config and state:</p>
+              <p>Optional cleanup, if you also want to delete PI WEB config and state:</p>
               <div class="code-card">
                 <div class="copy-row">
                   <strong>Delete config and data</strong>
@@ -277,7 +277,7 @@
 
     <footer class="site-footer">
       <div class="container footer-inner">
-        <span>Pi Web docs</span>
+        <span>PI WEB docs</span>
         <div class="footer-links">
           <a href="./">Home</a>
           <a href="remote-first.html">Remote-first</a>

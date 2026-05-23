@@ -46,7 +46,7 @@ export function loadPiWebConfig(options: LoadOptions = {}): LoadedPiWebConfig {
   if (!existsSync(path)) return { path, exists: false, config: {} };
 
   const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-  if (!isRecord(parsed)) throw new Error(`Pi Web config must be a JSON object: ${path}`);
+  if (!isRecord(parsed)) throw new Error(`PI WEB config must be a JSON object: ${path}`);
 
   return { path, exists: true, config: parsePiWebConfig(parsed, path) };
 }
@@ -78,20 +78,20 @@ function parsePiWebConfig(value: Record<string, unknown>, path: string): PiWebCo
 }
 
 function parseString(value: unknown, key: string, path: string): string {
-  if (typeof value !== "string" || value === "") throw new Error(`Pi Web config ${key} must be a non-empty string: ${path}`);
+  if (typeof value !== "string" || value === "") throw new Error(`PI WEB config ${key} must be a non-empty string: ${path}`);
   return value;
 }
 
 function parsePort(value: unknown, key: string, path = "environment"): number {
   const port = typeof value === "number" ? value : typeof value === "string" && value !== "" ? Number(value) : NaN;
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`Pi Web config ${key} must be an integer from 1 to 65535: ${path}`);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`PI WEB config ${key} must be an integer from 1 to 65535: ${path}`);
   return port;
 }
 
 function parseAllowedHosts(value: unknown, path: string): string[] | true {
   if (value === true) return true;
   if (!isNonEmptyStringArray(value)) {
-    throw new Error(`Pi Web config allowedHosts must be true or an array of non-empty strings: ${path}`);
+    throw new Error(`PI WEB config allowedHosts must be true or an array of non-empty strings: ${path}`);
   }
   return value;
 }

@@ -73,8 +73,8 @@ function renderStatusPanel(html: HtmlTemplateTag, state: AppState): TemplateResu
   const status = statusFor(state);
   if (status === undefined) {
     return html`
-      <section class="toolbar"><strong>Pi Web</strong></section>
-      <section class="viewer"><p class="muted">Checking Pi Web status…</p></section>
+      <section class="toolbar"><strong>PI WEB</strong></section>
+      <section class="viewer"><p class="muted">Checking PI WEB status…</p></section>
     `;
   }
 
@@ -98,10 +98,10 @@ function renderStatusPanel(html: HtmlTemplateTag, state: AppState): TemplateResu
         .pi-web-command > span { grid-column: 1 / -1; }
       }
     </style>
-    <section class="toolbar"><strong>Pi Web</strong><span class="stale">beta</span>${messages.length > 0 ? html`<span class="stale">${String(messages.length)}</span>` : null}</section>
+    <section class="toolbar"><strong>PI WEB</strong><span class="stale">beta</span>${messages.length > 0 ? html`<span class="stale">${String(messages.length)}</span>` : null}</section>
     <section class="viewer pi-web-status">
       <section>
-        ${messages.length === 0 ? html`<p class="muted">No Pi Web update or restart messages.</p>` : messages.map((message) => html`
+        ${messages.length === 0 ? html`<p class="muted">No PI WEB update or restart messages.</p>` : messages.map((message) => html`
           <article class=${`pi-web-message ${message.severity}`}>
             <div class="pi-web-message-title"><strong>${message.title}</strong><span>${message.severity}</span></div>
             <p>${message.body}</p>
@@ -136,13 +136,13 @@ function renderStatusPanel(html: HtmlTemplateTag, state: AppState): TemplateResu
 
 const plugin: PiWebPlugin = {
   apiVersion: 1,
-  name: "Pi Web Status",
+  name: "PI WEB Status",
   activate: ({ html }) => ({
     contributions: {
       workspacePanels: [
         {
           id: "workspace.status",
-          title: "Pi Web",
+          title: "PI WEB",
           order: 100,
           visible: (context) => shouldShowStatusPanel(context.state),
           badge: (context) => {

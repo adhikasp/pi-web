@@ -1,13 +1,13 @@
-# Pi Web plugin API
+# PI WEB plugin API
 
-Pi Web plugins are trusted browser-side ES modules that extend the Pi Web UI. They are intended for personal, team, and project-local customization, and simple enough for an LLM to create or modify directly.
+PI WEB plugins are trusted browser-side ES modules that extend the PI WEB UI. They are intended for personal, team, and project-local customization, and simple enough for an LLM to create or modify directly.
 
 Plugins can currently:
 
 - add action-palette commands;
 - add workspace tools/panels next to Files, Git, and Terminal;
 - add compact workspace-label items in the workspace list, panel header, and status bar;
-- call browser APIs and Pi Web HTTP/WebSocket APIs available to the current browser session;
+- call browser APIs and PI WEB HTTP/WebSocket APIs available to the current browser session;
 - serve their own static assets from the plugin directory.
 
 They do **not** run in the session daemon, do not get a server-side hook API, and are not sandboxed.
@@ -17,8 +17,8 @@ They do **not** run in the session daemon, do not get a server-side hook API, an
 Plugins run as JavaScript in the browser app. Treat them as trusted code:
 
 - they can call browser APIs;
-- they can `fetch()` Pi Web API endpoints using the current browser access;
-- they can read workspace files through Pi Web's file endpoints if the UI can read them;
+- they can `fetch()` PI WEB API endpoints using the current browser access;
+- they can read workspace files through PI WEB's file endpoints if the UI can read them;
 - they can render arbitrary Lit templates/custom elements in plugin contribution areas;
 - they should not be installed from untrusted sources.
 
@@ -37,23 +37,23 @@ Good plugin requests:
 Copy-paste prompt for creating a plugin:
 
 ```text
-Build a Pi Web plugin for this project.
+Build a PI WEB plugin for this project.
 Goal: <describe the UI behavior>.
-Before coding, read the Pi Web plugin docs:
+Before coding, read the PI WEB plugin docs:
 https://pi-web.dev/plugins.html
 Full API reference:
 https://pi-web.dev/plugins.md
 Create it as a local plugin under ~/.pi-web/plugins/<plugin-id>.
 Use the appropriate extension points from the docs.
 Validate by checking /pi-web-plugins/manifest.json and explain how to reload/debug it.
-Do not modify Pi Web itself.
+Do not modify PI WEB itself.
 ```
 
 Copy-paste prompt for modifying a plugin:
 
 ```text
-Improve the Pi Web plugin at <path>.
-Before coding, read the Pi Web plugin docs:
+Improve the PI WEB plugin at <path>.
+Before coding, read the PI WEB plugin docs:
 https://pi-web.dev/plugins.html
 Full API reference:
 https://pi-web.dev/plugins.md
@@ -63,9 +63,9 @@ After editing, check the manifest endpoint and browser-console failure cases.
 
 ## Canonical example: bundled Info plugin
 
-Pi Web ships a real bundled `info` plugin. Use it as the reference example because it is intentionally small while still exercising all core contribution types: an action, a workspace label, and a workspace panel.
+PI WEB ships a real bundled `info` plugin. Use it as the reference example because it is intentionally small while still exercising all core contribution types: an action, a workspace label, and a workspace panel.
 
-Bundled Pi Web plugins are developed as TypeScript in the repository, but their `package.json` metadata still points at built JavaScript because plugins are loaded by the browser as JS ES modules. `npm run dev:web` watches and rebuilds bundled plugin TS into `dist/pi-web-plugins/` during development, and `npm run build` emits the JS before packaging a release.
+Bundled PI WEB plugins are developed as TypeScript in the repository, but their `package.json` metadata still points at built JavaScript because plugins are loaded by the browser as JS ES modules. `npm run dev:web` watches and rebuilds bundled plugin TS into `dist/pi-web-plugins/` during development, and `npm run build` emits the JS before packaging a release.
 
 Source files:
 
@@ -112,20 +112,20 @@ export default {
 
 When copying the Info plugin, choose a new plugin id so it does not conflict with the bundled `info` plugin.
 
-Pi Web also ships a `pi-web` status plugin that demonstrates dynamic `visible` and `badge` callbacks for tabs that only appear when the host has status messages or needs extra install visibility.
+PI WEB also ships a `pi-web` status plugin that demonstrates dynamic `visible` and `badge` callbacks for tabs that only appear when the host has status messages or needs extra install visibility.
 
 ## Local plugin usage
 
-This works with the production npm/systemd install. Pi Web discovers plugins from `~/.pi-web/plugins/<plugin-package>/` on the web/API side; no Pi Web rebuild or session-daemon restart is required. If `PI_WEB_DATA_DIR` is set, use `$PI_WEB_DATA_DIR/plugins` instead.
+This works with the production npm/systemd install. PI WEB discovers plugins from `~/.pi-web/plugins/<plugin-package>/` on the web/API side; no PI WEB rebuild or session-daemon restart is required. If `PI_WEB_DATA_DIR` is set, use `$PI_WEB_DATA_DIR/plugins` instead.
 
-Symlink a plugin folder into Pi Web's local plugin directory:
+Symlink a plugin folder into PI WEB's local plugin directory:
 
 ```bash
 mkdir -p ~/.pi-web/plugins
 ln -s /path/to/plugin-folder ~/.pi-web/plugins/plugin-id
 ```
 
-Reload the Pi Web browser tab. Pi Web serves plugin modules with an mtime-based `?v=` cache buster. After editing a plugin, hard reload the browser if you do not see changes.
+Reload the PI WEB browser tab. PI WEB serves plugin modules with an mtime-based `?v=` cache buster. After editing a plugin, hard reload the browser if you do not see changes.
 
 ## First-party separate plugin packages
 
@@ -133,11 +133,11 @@ First-party plugins that are published as their own npm packages can live in thi
 
 A separate plugin package should:
 
-- use type-only imports from `@jmfederico/pi-web/plugin-api` when it needs shared Pi Web plugin interfaces; this subpath is currently a `.d.ts`-only dogfooding surface, not a runtime JavaScript module;
-- keep its Pi Web metadata in its own `package.json` with `piWeb.plugins` entries pointing at built JavaScript in `dist/`;
+- use type-only imports from `@jmfederico/pi-web/plugin-api` when it needs shared PI WEB plugin interfaces; this subpath is currently a `.d.ts`-only dogfooding surface, not a runtime JavaScript module;
+- keep its PI WEB metadata in its own `package.json` with `piWeb.plugins` entries pointing at built JavaScript in `dist/`;
 - include a package-level `build` script and `prepack` script so `npm pack --workspace <package>` and `npm publish --workspace <package>` produce a usable plugin package;
 - use a local symlink into `~/.pi-web/plugins/<plugin-id>` while developing;
-- document any private Pi Web APIs it dogfoods until those APIs become stable plugin runtime helpers.
+- document any private PI WEB APIs it dogfoods until those APIs become stable plugin runtime helpers.
 
 Typical local development loop from this repository:
 
@@ -146,13 +146,13 @@ npm run dev
 curl http://127.0.0.1:8504/pi-web-plugins/manifest.json
 ```
 
-The main Pi Web `dev` command watches bundled plugins in `pi-web-plugins/`, builds/watches separate plugin packages in `plugins/*`, and discovers those source-checkout plugin packages without symlinking them into `~/.pi-web/plugins`.
+The main PI WEB `dev` command watches bundled plugins in `pi-web-plugins/`, builds/watches separate plugin packages in `plugins/*`, and discovers those source-checkout plugin packages without symlinking them into `~/.pi-web/plugins`.
 
 ## Discovery and packaging
 
-Pi Web builds `/pi-web-plugins/manifest.json` from these sources:
+PI WEB builds `/pi-web-plugins/manifest.json` from these sources:
 
-1. Bundled plugins in the Pi Web package:
+1. Bundled plugins in the PI WEB package:
 
    ```text
    pi-web-plugins/<plugin-package>/
@@ -166,7 +166,7 @@ Pi Web builds `/pi-web-plugins/manifest.json` from these sources:
 
    Entries may be real directories or symlinks. This is the recommended development workflow.
 
-3. Installed Pi packages that expose Pi Web plugin metadata. Pi packages may be user or project scoped.
+3. Installed Pi packages that expose PI WEB plugin metadata. Pi packages may be user or project scoped.
 
 Plugin package directory names and plugin ids must be valid identifiers:
 
@@ -174,7 +174,7 @@ Plugin package directory names and plugin ids must be valid identifiers:
 ^[a-z][a-z0-9.-]*$
 ```
 
-A package can expose one or more Pi Web plugin modules. There is exactly one supported `package.json` metadata shape:
+A package can expose one or more PI WEB plugin modules. There is exactly one supported `package.json` metadata shape:
 
 ```json
 {
@@ -222,7 +222,7 @@ A plugin can fetch its own static assets with URLs under:
 /pi-web-plugins/<plugin-id>/<path-inside-plugin-root>
 ```
 
-Pi Web prevents asset path traversal outside the plugin root. JavaScript, JSON, CSS, and HTML get appropriate content types; other files are served as octet-stream.
+PI WEB prevents asset path traversal outside the plugin root. JavaScript, JSON, CSS, and HTML get appropriate content types; other files are served as octet-stream.
 
 ## Plugin module shape
 
@@ -264,7 +264,7 @@ export default {
 
 `activate()` is called once when the UI loads the plugin. Keep it cheap: define contributions there, but move expensive or async work into actions, custom elements, or explicit user interactions.
 
-The plugin id comes from `package.json`, not from the JavaScript module. Contribution ids are local to the plugin and Pi Web qualifies them internally as:
+The plugin id comes from `package.json`, not from the JavaScript module. Contribution ids are local to the plugin and PI WEB qualifies them internally as:
 
 ```text
 <plugin-id>:<local-contribution-id>
@@ -345,17 +345,17 @@ Notes:
 
 - `state` is a snapshot of current UI state when actions are built.
 - Only `state.selectedWorkspace` and `state.selectedSession` are documented as stable for plugin authors.
-- Other `state` fields may exist at runtime, but they are Pi Web internals and can change quickly.
+- Other `state` fields may exist at runtime, but they are PI WEB internals and can change quickly.
 - `enabled` is evaluated when the action palette asks for actions.
 - `selectWorkspaceTool()` expects a qualified panel id such as `my-plugin:workspace.info`.
 - `openTerminal()` switches to the built-in terminal panel. Pass `{ terminalId }` to deep-link to a specific terminal after creating one through the terminal API.
 
 #### Keyboard shortcuts
 
-- App-level keyboard shortcuts must be attached to actions. Pi Web does not support standalone plugin keyboard commands; contribute an action first, then add a `shortcut` if it needs a keybinding.
+- App-level keyboard shortcuts must be attached to actions. PI WEB does not support standalone plugin keyboard commands; contribute an action first, then add a `shortcut` if it needs a keybinding.
 - `shortcut` is the action's default keybinding. It is displayed in the action palette and handled by the global shortcut dispatcher when the action is enabled.
 - Use modified shortcuts such as `mod+shift+p`; plain letter shortcuts are intentionally ignored so normal typing is never captured.
-- Future Pi Web versions may allow users to override or disable action shortcuts by action id, so plugins should treat `shortcut` as a default rather than a guaranteed final binding.
+- Future PI WEB versions may allow users to override or disable action shortcuts by action id, so plugins should treat `shortcut` as a default rather than a guaranteed final binding.
 - Choose shortcuts carefully to avoid conflicts. There is no user-facing shortcut override or conflict resolver yet.
 - Local text input, terminal input, list navigation, and dialog keys such as Enter, Escape, and arrow keys do not need to be plugin actions unless they are app-level commands.
 
@@ -399,7 +399,7 @@ interface WorkspacePanelContext {
 }
 ```
 
-`workspace` and `openTerminal()` are documented as stable for panel callbacks. Other fields may exist at runtime, but they are Pi Web internals and can change quickly. Use `openTerminal({ terminalId })` when a panel creates a terminal and wants Pi Web to navigate to that specific terminal. If a panel needs file, git, or session data, prefer explicit `fetch()` calls and keep them isolated.
+`workspace` and `openTerminal()` are documented as stable for panel callbacks. Other fields may exist at runtime, but they are PI WEB internals and can change quickly. Use `openTerminal({ terminalId })` when a panel creates a terminal and wants PI WEB to navigate to that specific terminal. If a panel needs file, git, or session data, prefer explicit `fetch()` calls and keep them isolated.
 
 Useful workspace shape:
 
@@ -420,7 +420,7 @@ Use existing classes such as `toolbar`, `viewer`, `empty`, and `muted` for panel
 
 ### Workspace labels
 
-Workspace labels add compact inline metadata wherever Pi Web displays a workspace label: workspace list, workspace panel header, and status bar.
+Workspace labels add compact inline metadata wherever PI WEB displays a workspace label: workspace list, workspace panel header, and status bar.
 
 Use them for short facts like project environment, local URL, branch status, container name, or health state.
 
@@ -456,7 +456,7 @@ interface WorkspaceLabelContext {
 }
 ```
 
-Only `workspace` is documented as stable for label callbacks. Other fields may exist at runtime, but they are Pi Web internals and can change quickly.
+Only `workspace` is documented as stable for label callbacks. Other fields may exist at runtime, but they are PI WEB internals and can change quickly.
 
 Items are sorted by `order` and then id. Return an empty array to render nothing.
 
@@ -478,7 +478,7 @@ Items are sorted by `order` and then id. Return an empty array to render nothing
 }
 ```
 
-Pi Web renders the anchor and adds safe defaults such as `rel="noopener noreferrer"` for `_blank` links. `javascript:` and `data:` links are rendered as plain text instead of links.
+PI WEB renders the anchor and adds safe defaults such as `rel="noopener noreferrer"` for `_blank` links. `javascript:` and `data:` links are rendered as plain text instead of links.
 
 #### Render items
 
@@ -518,7 +518,7 @@ export default {
 
 ## Reading workspace files
 
-Plugins can use existing Pi Web endpoints. For example, to read a file in a workspace:
+Plugins can use existing PI WEB endpoints. For example, to read a file in a workspace:
 
 ```js
 async function readWorkspaceFile(workspace, path) {
@@ -533,13 +533,13 @@ async function readWorkspaceFile(workspace, path) {
 }
 ```
 
-The file response includes fields such as `path`, `content`, `truncated`, and `binary`, but endpoint response shapes are private Pi Web implementation details for now and can change between releases.
+The file response includes fields such as `path`, `content`, `truncated`, and `binary`, but endpoint response shapes are private PI WEB implementation details for now and can change between releases.
 
 Be careful with sensitive files such as `.env`: plugins are trusted browser code, and file contents are exposed to the plugin.
 
-## Other useful Pi Web APIs
+## Other useful PI WEB APIs
 
-Plugins may call any endpoint available to the browser, but these HTTP endpoints are considered private Pi Web implementation APIs for now. They can change quickly between releases. Prefer plugin runtime context helpers when they cover the interaction, and keep any direct HTTP usage small and isolated.
+Plugins may call any endpoint available to the browser, but these HTTP endpoints are considered private PI WEB implementation APIs for now. They can change quickly between releases. Prefer plugin runtime context helpers when they cover the interaction, and keep any direct HTTP usage small and isolated.
 
 Common read endpoints:
 
@@ -566,11 +566,11 @@ POST /api/sessions/:id/archive
 POST /api/sessions/:id/restore
 ```
 
-Prefer runtime context helpers (`startSession`, `stopActiveWork`, `refreshFiles`, `refreshGit`, etc.) when they cover the interaction. Use direct HTTP calls only for plugin-specific data or behavior, and expect to update them as Pi Web evolves.
+Prefer runtime context helpers (`startSession`, `stopActiveWork`, `refreshFiles`, `refreshGit`, etc.) when they cover the interaction. Use direct HTTP calls only for plugin-specific data or behavior, and expect to update them as PI WEB evolves.
 
 ## Async data and caching
 
-Pi Web does not provide a plugin cache/invalidation framework. Keep host callbacks cheap:
+PI WEB does not provide a plugin cache/invalidation framework. Keep host callbacks cheap:
 
 - simple contributions should be synchronous and cheap;
 - expensive or async work should live inside the plugin;
@@ -580,7 +580,7 @@ Pi Web does not provide a plugin cache/invalidation framework. Keep host callbac
 
 ## Agent implementation checklist
 
-If you are an AI agent building or editing a Pi Web plugin, follow this checklist:
+If you are an AI agent building or editing a PI WEB plugin, follow this checklist:
 
 1. Create or update a plugin folder with `package.json` and a JavaScript module such as `pi-web-plugin.js`.
 2. Use the single supported package metadata shape: `piWeb.plugins` array with `{ id, module }` entries.
@@ -594,7 +594,7 @@ If you are an AI agent building or editing a Pi Web plugin, follow this checklis
 10. Add workspace labels for compact inline metadata.
 11. Return arrays from workspace label `items()`; return an empty array to render nothing.
 12. Use stable context fields first; only `workspace`, `state.selectedWorkspace`, and `state.selectedSession` are documented as stable.
-13. Use `fetch()` against Pi Web APIs only for plugin-specific behavior not provided by runtime context helpers, and isolate those calls because HTTP endpoints are private for now.
+13. Use `fetch()` against PI WEB APIs only for plugin-specific behavior not provided by runtime context helpers, and isolate those calls because HTTP endpoints are private for now.
 14. Treat plugins as trusted code and avoid reading or displaying secrets unless intentional.
 15. After local edits, tell the user to hard reload the browser and check the console for plugin errors.
 

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PI WEB plugins</title>
-    <meta name="description" content="Use and develop trusted local Pi Web UI plugins." />
+    <meta name="description" content="Use and develop trusted local PI WEB UI plugins." />
     <meta property="og:title" content="PI WEB plugins" />
     <meta property="og:image" content="assets/pi-web-banner.png" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
@@ -25,13 +25,13 @@
   <body>
     <header class="site-header">
       <nav class="container nav" aria-label="Main navigation">
-        <a class="brand" href="./" aria-label="Pi Web home">Pi Web</a>
+        <a class="brand" href="./" aria-label="PI WEB home">PI WEB</a>
         <div class="nav-links">
           <a href="remote-first.html">Remote-first</a>
           <a href="install.html">Install</a>
           <a href="plugins.html" aria-current="page">Plugins</a>
           <a href="faq.html">FAQ</a>
-          <a class="github-link" href="https://github.com/jmfederico/pi-web" aria-label="Pi Web on GitHub">
+          <a class="github-link" href="https://github.com/jmfederico/pi-web" aria-label="PI WEB on GitHub">
             <svg class="github-icon" viewBox="0 0 16 16" aria-hidden="true">
               <path
                 fill="currentColor"
@@ -52,10 +52,10 @@
       <section class="page-hero">
         <div class="container">
           <p class="eyebrow"><span class="pulse"></span> Plugin development</p>
-          <h1>Customize Pi Web with local UI plugins.</h1>
+          <h1>Customize PI WEB with local UI plugins.</h1>
           <p>
             Plugins are trusted browser-side ES modules. They can add actions, workspace panels, and compact workspace
-            labels to the Pi Web UI.
+            labels to the PI WEB UI.
           </p>
         </div>
       </section>
@@ -76,13 +76,13 @@
           <div class="doc-content">
             <section id="extend">
               <h2>What can be extended</h2>
-              <p>Plugins can add small, focused UI extensions to Pi Web:</p>
+              <p>Plugins can add small, focused UI extensions to PI WEB:</p>
               <ul>
                 <li><strong>Action palette commands</strong> for custom workflows.</li>
                 <li><strong>Workspace tools and panels</strong> next to Files, Git, and Terminal.</li>
                 <li><strong>Workspace labels</strong> in the workspace list, header, and status bar.</li>
                 <li><strong>Static assets</strong> served from the plugin folder.</li>
-                <li><strong>Browser-side integrations</strong> using Pi Web HTTP/WebSocket APIs.</li>
+                <li><strong>Browser-side integrations</strong> using PI WEB HTTP/WebSocket APIs.</li>
               </ul>
               <p>
                 Plugins cannot extend the session daemon or add server-side hooks. They run in the browser UI only.
@@ -98,7 +98,7 @@
               <h2>What to ask AI to build</h2>
               <p>
                 You do not need to hand-code plugins. Give an AI agent a clear goal, the workspace/project facts it
-                should use, and the Pi Web plugin rules.
+                should use, and the PI WEB plugin rules.
               </p>
               <ul>
                 <li>Show a workspace badge from a repo file, environment file, branch name, container, or dev URL.</li>
@@ -111,24 +111,24 @@
                   <strong>Prompt: create a plugin</strong>
                   <button class="copy-button" data-copy="#plugin-create-prompt">Copy</button>
                 </div>
-                <pre id="plugin-create-prompt"><code>Build a Pi Web plugin for this project.
+                <pre id="plugin-create-prompt"><code>Build a PI WEB plugin for this project.
 Goal: &lt;describe the UI behavior&gt;.
-Before coding, read the Pi Web plugin docs:
+Before coding, read the PI WEB plugin docs:
 https://pi-web.dev/plugins.html
 Full API reference:
 https://pi-web.dev/plugins.md
 Create it as a local plugin under ~/.pi-web/plugins/&lt;plugin-id&gt;.
 Use the appropriate extension points from the docs.
 Validate by checking /pi-web-plugins/manifest.json and explain how to reload/debug it.
-Do not modify Pi Web itself.</code></pre>
+Do not modify PI WEB itself.</code></pre>
               </div>
               <div class="code-card">
                 <div class="copy-row">
                   <strong>Prompt: improve a plugin</strong>
                   <button class="copy-button" data-copy="#plugin-improve-prompt">Copy</button>
                 </div>
-                <pre id="plugin-improve-prompt"><code>Improve the Pi Web plugin at &lt;path&gt;.
-Before coding, read the Pi Web plugin docs:
+                <pre id="plugin-improve-prompt"><code>Improve the PI WEB plugin at &lt;path&gt;.
+Before coding, read the PI WEB plugin docs:
 https://pi-web.dev/plugins.html
 Full API reference:
 https://pi-web.dev/plugins.md
@@ -140,11 +140,11 @@ After editing, check the manifest endpoint and browser-console failure cases.</c
             <section id="example">
               <h2>Canonical example</h2>
               <p>
-                Pi Web ships a real bundled <strong>Info</strong> plugin. It is intentionally small while still using all
+                PI WEB ships a real bundled <strong>Info</strong> plugin. It is intentionally small while still using all
                 core contribution types: one action, one workspace label, and one workspace panel.
               </p>
               <p>
-                Bundled Pi Web plugins are developed as TypeScript in the repository, while their package metadata
+                Bundled PI WEB plugins are developed as TypeScript in the repository, while their package metadata
                 points at the built JavaScript ES modules that the browser loads. <code>npm run dev:web</code> watches and
                 rebuilds bundled plugin TS into <code>dist/pi-web-plugins/</code> during development, and <code>npm run build</code>
                 emits JS before release packaging.
@@ -169,7 +169,7 @@ After editing, check the manifest endpoint and browser-console failure cases.</c
               <h2>Production usage</h2>
               <p>
                 Local plugins work with the production npm/systemd install. Put each plugin under
-                <code>~/.pi-web/plugins/&lt;plugin-id&gt;/</code>, or symlink it there while developing. No Pi Web rebuild or
+                <code>~/.pi-web/plugins/&lt;plugin-id&gt;/</code>, or symlink it there while developing. No PI WEB rebuild or
                 session-daemon restart is required.
               </p>
               <div class="callout warning">
@@ -195,7 +195,7 @@ After editing, check the manifest endpoint and browser-console failure cases.</c
               <p>
                 If you want to understand the API yourself, ask an agent to read that file and explain the relevant
                 extension points for the plugin you want. The Markdown reference also marks which context fields are
-                stable and which Pi Web internals should be avoided unless necessary.
+                stable and which PI WEB internals should be avoided unless necessary.
               </p>
             </section>
 
@@ -223,7 +223,7 @@ After editing, check the manifest endpoint and browser-console failure cases.</c
             <section id="trust">
               <h2>Trust model</h2>
               <p>
-                Plugins are not sandboxed. They run as JavaScript in the browser, can call Pi Web APIs available to the
+                Plugins are not sandboxed. They run as JavaScript in the browser, can call PI WEB APIs available to the
                 current session, and can render arbitrary UI. Install only plugins you trust.
               </p>
               <p>
@@ -237,7 +237,7 @@ After editing, check the manifest endpoint and browser-console failure cases.</c
 
     <footer class="site-footer">
       <div class="container footer-inner">
-        <span>Pi Web plugin docs</span>
+        <span>PI WEB plugin docs</span>
         <div class="footer-links">
           <a href="./">Home</a>
           <a href="remote-first.html">Remote-first</a>

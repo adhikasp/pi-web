@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PI WEB FAQ</title>
-    <meta name="description" content="Answers for common Pi Web install and runtime issues." />
+    <meta name="description" content="Answers for common PI WEB install and runtime issues." />
     <meta property="og:title" content="PI WEB FAQ" />
     <meta property="og:image" content="assets/pi-web-banner.png" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
@@ -25,13 +25,13 @@
   <body>
     <header class="site-header">
       <nav class="container nav" aria-label="Main navigation">
-        <a class="brand" href="./" aria-label="Pi Web home">Pi Web</a>
+        <a class="brand" href="./" aria-label="PI WEB home">PI WEB</a>
         <div class="nav-links">
           <a href="remote-first.html">Remote-first</a>
           <a href="install.html">Install</a>
           <a href="plugins.html">Plugins</a>
           <a href="faq.html" aria-current="page">FAQ</a>
-          <a class="github-link" href="https://github.com/jmfederico/pi-web" aria-label="Pi Web on GitHub">
+          <a class="github-link" href="https://github.com/jmfederico/pi-web" aria-label="PI WEB on GitHub">
             <svg class="github-icon" viewBox="0 0 16 16" aria-hidden="true">
               <path
                 fill="currentColor"
@@ -54,7 +54,7 @@
           <p class="eyebrow"><span class="pulse"></span> FAQ & troubleshooting</p>
           <h1>Fix the things that usually go wrong first.</h1>
           <p>
-            Most Pi Web install issues are environment issues: systemd availability, PATH setup, Node version managers,
+            Most PI WEB install issues are environment issues: systemd availability, PATH setup, Node version managers,
             or remote access expectations.
           </p>
         </div>
@@ -81,7 +81,7 @@
             <article id="is-this-linux-only" class="faq-item">
               <h2>Is this Linux only?</h2>
               <p>
-                No. Pi Web can run anywhere its runtime dependencies work, including macOS and Windows through WSL. The
+                No. PI WEB can run anywhere its runtime dependencies work, including macOS and Windows through WSL. The
                 automatic <code>pi-web install</code> command is the Linux-specific part because it writes and manages
                 <code>systemctl --user</code> services.
               </p>
@@ -96,8 +96,8 @@
             <article id="tools-are-not-found" class="faq-item">
               <h2>Tools are failing, node is not found, or Pi cannot find commands</h2>
               <p>
-                The shell environment needs to be set up so login shells have the required PATH entries for Pi Web, Pi,
-                and any tools your agents need. Pi Web services run commands through a non-interactive login shell, so
+                The shell environment needs to be set up so login shells have the required PATH entries for PI WEB, Pi,
+                and any tools your agents need. PI WEB services run commands through a non-interactive login shell, so
                 an interactive terminal can work while services fail.
               </p>
               <div class="code-card">
@@ -174,9 +174,9 @@
             </article>
 
             <article id="public-internet" class="faq-item">
-              <h2>Can I expose Pi Web to the public internet?</h2>
+              <h2>Can I expose PI WEB to the public internet?</h2>
               <p>
-                Do not expose it directly to the public internet. Pi Web assumes trusted users and trusted server paths.
+                Do not expose it directly to the public internet. PI WEB assumes trusted users and trusted server paths.
                 For remote access, bind only to an interface that is already private and controlled: for example the
                 server's VPN IP, a private LAN IP, or localhost behind an SSH tunnel.
               </p>
@@ -190,9 +190,9 @@
             </article>
 
             <article id="laptop-or-server" class="faq-item">
-              <h2>Should I run Pi Web on my laptop or a server?</h2>
+              <h2>Should I run PI WEB on my laptop or a server?</h2>
               <p>
-                You can run it locally, but Pi Web is most useful on a machine that stays on. A remote dev box, home
+                You can run it locally, but PI WEB is most useful on a machine that stays on. A remote dev box, home
                 server, cloud VM, or workstation gives agents a stable place to keep working while your laptop becomes
                 just a client.
               </p>
@@ -204,7 +204,7 @@
             </article>
 
             <article id="plugins" class="faq-item">
-              <h2>Can I use local plugins with production Pi Web?</h2>
+              <h2>Can I use local plugins with production PI WEB?</h2>
               <p>
                 Yes. Put trusted browser-side plugins in <code>~/.pi-web/plugins/&lt;plugin-id&gt;/</code>, or symlink a
                 development folder there. Reload the browser tab after edits. If <code>PI_WEB_DATA_DIR</code> is set, use
@@ -248,7 +248,7 @@
 
     <footer class="site-footer">
       <div class="container footer-inner">
-        <span>Pi Web FAQ</span>
+        <span>PI WEB FAQ</span>
         <div class="footer-links">
           <a href="./">Home</a>
           <a href="remote-first.html">Remote-first</a>

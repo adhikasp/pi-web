@@ -218,7 +218,7 @@ export class PiWebApp extends LitElement {
     try {
       this.setState({ piWebStatus: await piWebApi.piWebStatus() });
     } catch (error) {
-      console.warn("Failed to refresh Pi Web status", error);
+      console.warn("Failed to refresh PI WEB status", error);
     }
   }
 
@@ -431,7 +431,7 @@ export class PiWebApp extends LitElement {
     });
     return html`
       <header>
-        <strong>Pi Web</strong>
+        <strong>PI WEB</strong>
         <button title="Show Actions" aria-label="Show Actions" @click=${() => { this.setState({ actionPaletteOpen: true }); }}>Actions</button>
       </header>
       <project-list
@@ -517,7 +517,7 @@ export class PiWebApp extends LitElement {
     if (this.state.isLoadingProjects) {
       return {
         title: "Loading projects…",
-        body: "Looking for projects you have added to Pi Web.",
+        body: "Looking for projects you have added to PI WEB.",
       };
     }
     if (project === undefined) {
@@ -603,13 +603,13 @@ export class PiWebApp extends LitElement {
         try {
           this.plugins.register(registration);
         } catch (error) {
-          console.warn(`Failed to register Pi Web plugin ${registration.id}`, error);
+          console.warn(`Failed to register PI WEB plugin ${registration.id}`, error);
         }
       }
       this.applyPreferredTheme(false);
       this.requestUpdate();
     } catch (error) {
-      console.warn("Failed to load external Pi Web plugins", error);
+      console.warn("Failed to load external PI WEB plugins", error);
     }
   }
 

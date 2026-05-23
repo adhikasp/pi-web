@@ -359,9 +359,9 @@ function optionalPiWebInstallationInfo(value: unknown): PiWebInstallationInfo | 
   if (value === undefined) return undefined;
   const record = requireRecord(value);
   const kind = requireString(record, "kind");
-  if (kind !== "pi-package" && kind !== "npm-global" && kind !== "local" && kind !== "unknown") throw new Error("Invalid Pi Web installation kind");
+  if (kind !== "pi-package" && kind !== "npm-global" && kind !== "local" && kind !== "unknown") throw new Error("Invalid PI WEB installation kind");
   const scope = record["scope"];
-  if (scope !== undefined && scope !== "user" && scope !== "project") throw new Error("Invalid Pi Web installation scope");
+  if (scope !== undefined && scope !== "user" && scope !== "project") throw new Error("Invalid PI WEB installation scope");
   return {
     kind,
     ...optionalField("path", optionalString(record, "path")),
@@ -400,12 +400,12 @@ function parsePiWebStatusMessage(value: unknown): PiWebStatusMessage {
 }
 
 function parsePiWebServiceComponent(value: unknown): PiWebServiceComponent {
-  if (value !== "web" && value !== "sessiond") throw new Error("Invalid Pi Web service component");
+  if (value !== "web" && value !== "sessiond") throw new Error("Invalid PI WEB service component");
   return value;
 }
 
 function parsePiWebStatusSeverity(value: unknown): PiWebStatusSeverity {
-  if (value !== "info" && value !== "warning" && value !== "error") throw new Error("Invalid Pi Web status severity");
+  if (value !== "info" && value !== "warning" && value !== "error") throw new Error("Invalid PI WEB status severity");
   return value;
 }
 

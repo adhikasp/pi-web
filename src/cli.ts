@@ -203,14 +203,14 @@ function describeServiceShell(): string {
   if (shell.fallback) {
     return shell.detected === undefined
       ? "could not detect a supported login shell; using bash"
-      : `detected ${shell.detected}; using bash because Pi Web currently supports bash, zsh, and fish`;
+      : `detected ${shell.detected}; using bash because PI WEB currently supports bash, zsh, and fish`;
   }
   return shell.detected === undefined ? shell.name : `${shell.name} (${shell.detected})`;
 }
 
 function sessiondUnit(executables: ServiceExecutables): string {
   return `[Unit]
-Description=Pi Web session daemon
+Description=PI WEB session daemon
 
 [Service]
 Type=simple
@@ -226,7 +226,7 @@ WantedBy=default.target
 function webUnit(options: InstallOptions, executables: ServiceExecutables): string {
   const configEnvironment = options.config === undefined ? "" : `Environment="PI_WEB_CONFIG=${systemdEscape(resolve(options.config))}"\n`;
   return `[Unit]
-Description=Pi Web server
+Description=PI WEB server
 After=${sessiondServiceName}
 Wants=${sessiondServiceName}
 
@@ -254,7 +254,7 @@ async function install(args: string[]): Promise<void> {
   const options = parseInstallOptions(args);
 
   const executables = resolveServiceExecutables();
-  console.log("Running Pi Web install preflight checks...");
+  console.log("Running PI WEB install preflight checks...");
   console.log(`Service shell: ${describeServiceShell()}`);
   if (!runChecks(installPreflightChecks(executables))) {
     printPathSetupAdvice();
@@ -271,7 +271,7 @@ async function install(args: string[]): Promise<void> {
   run("systemctl", ["--user", "enable", "--now", sessiondServiceName], { check: true });
   run("systemctl", ["--user", "enable", "--now", webServiceName], { check: true });
 
-  console.log(`\nPi Web is installed and starting.`);
+  console.log(`\nPI WEB is installed and starting.`);
   console.log(`Config: ${configPath}`);
   console.log(`Open: http://${options.host === "0.0.0.0" ? "127.0.0.1" : options.host}:${options.port}`);
 
@@ -296,7 +296,7 @@ async function uninstall(): Promise<void> {
   await rm(join(serviceDir, webServiceName), { force: true });
   await rm(join(serviceDir, sessiondServiceName), { force: true });
   run("systemctl", ["--user", "daemon-reload"]);
-  console.log("Pi Web systemd user services removed.");
+  console.log("PI WEB systemd user services removed.");
 }
 
 function serviceAction(action: "start" | "stop" | "restart" | "status"): void {
@@ -384,10 +384,10 @@ function printPathSetupAdvice(): void {
     console.log("  Do not rely only on ~/.bashrc or prompt hooks for tools needed by services or agents.");
   } else if (shell.name === "zsh") {
     console.log("  Detected zsh. Put PATH setup for node/version managers/tools in ~/.zprofile, not only ~/.zshrc.");
-    console.log("  Avoid relying on prompt hooks; Pi Web services run non-interactive login shells.");
+    console.log("  Avoid relying on prompt hooks; PI WEB services run non-interactive login shells.");
   } else {
     console.log("  Detected fish. Prefer universal PATH setup such as `fish_add_path -U ...` for tools needed by services or agents.");
-    console.log("  Avoid relying on prompt hooks; Pi Web services run non-interactive login shells.");
+    console.log("  Avoid relying on prompt hooks; PI WEB services run non-interactive login shells.");
   }
 }
 
@@ -408,14 +408,14 @@ function doctor(): void {
 
   if (!ok) {
     console.log("\nIf a command works in your terminal but fails here, make sure your service shell login files set PATH the same way.");
-    console.log("If a bundled entrypoint is not accessible, reinstall or update the Pi Web package.");
+    console.log("If a bundled entrypoint is not accessible, reinstall or update the PI WEB package.");
     printPathSetupAdvice();
     process.exitCode = 1;
   }
 }
 
 function help(): void {
-  console.log(`Pi Web
+  console.log(`PI WEB
 
 Usage:
   pi-web install [--host 127.0.0.1] [--port 8504] [--config ~/.config/pi-web/config.json]

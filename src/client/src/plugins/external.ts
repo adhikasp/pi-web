@@ -21,7 +21,7 @@ export async function loadExternalPlugins(manifestUrl = "/pi-web-plugins/manifes
       const plugin = parsePluginModule(module, moduleUrl);
       registrations.push({ id: entry.id, plugin });
     } catch (error) {
-      console.warn(`Failed to load Pi Web plugin ${entry.module}`, error);
+      console.warn(`Failed to load PI WEB plugin ${entry.module}`, error);
     }
   }
   return registrations;

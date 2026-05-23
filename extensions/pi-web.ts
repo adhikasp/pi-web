@@ -81,7 +81,7 @@ async function boundedLogs(): Promise<{ code: number; output: string }> {
 
 export default function piWebExtension(pi: ExtensionAPI): void {
   pi.registerCommand("pi-web", {
-    description: "Manage Pi Web services: install, status, logs, restart, start, stop, doctor, open",
+    description: "Manage PI WEB services: install, status, logs, restart, start, stop, doctor, open",
     getArgumentCompletions(prefix: string): { value: string; label: string }[] | null {
       const [first = ""] = parseArgs(prefix);
       const items = subcommands
@@ -95,12 +95,12 @@ export default function piWebExtension(pi: ExtensionAPI): void {
       const rest = parsedArgs.slice(1);
 
       if (subcommand === "help") {
-        ctx.ui.notify(`Pi Web commands:\n\n${subcommands.map((command) => `/pi-web ${command}`).join("\n")}\n\nLogs are bounded to the last 100 journal lines in the Pi command. Use \`pi-web logs\` in a shell to follow logs.`, "info");
+        ctx.ui.notify(`PI WEB commands:\n\n${subcommands.map((command) => `/pi-web ${command}`).join("\n")}\n\nLogs are bounded to the last 100 journal lines in the Pi command. Use \`pi-web logs\` in a shell to follow logs.`, "info");
         return;
       }
 
       if (subcommand === "open") {
-        ctx.ui.notify("Pi Web default URL: http://127.0.0.1:8504", "info");
+        ctx.ui.notify("PI WEB default URL: http://127.0.0.1:8504", "info");
         return;
       }
 

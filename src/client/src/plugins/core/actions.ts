@@ -43,7 +43,7 @@ export function createCoreActions(): PluginAction[] {
     {
       id: "theme.select",
       title: "Select Theme",
-      description: "Choose the Pi Web color theme",
+      description: "Choose the PI WEB color theme",
       group: "Preferences",
       run: (context) => { context.openThemePicker(); },
     },

@@ -1,8 +1,8 @@
-# Pi Web Actions
+# PI WEB Actions
 
-Configurable workspace actions for Pi Web.
+Configurable workspace actions for PI WEB.
 
-The plugin adds an **Actions** workspace tab. Actions create a new Pi Web terminal, send the configured shell command, and switch to that terminal so the user can monitor progress or take over.
+The plugin adds an **Actions** workspace tab. Actions create a new PI WEB terminal, send the configured shell command, and switch to that terminal so the user can monitor progress or take over.
 
 ## Configuration
 
@@ -41,19 +41,19 @@ Fields:
 - `group`: optional group heading.
 - `confirm`: optional boolean. When true, the browser asks before dispatching the command.
 
-Commands run in the workspace root because Pi Web creates the terminal for that workspace.
+Commands run in the workspace root because PI WEB creates the terminal for that workspace.
 
 After editing `.pi-web/actions.json`, click **Refresh** in the Actions tab or reload the browser tab. The plugin does not watch the file automatically.
 
 ## Development in this monorepo
 
-This package is developed as a separate npm package, not as a bundled Pi Web plugin. From the Pi Web repository, the single root dev command builds, watches, and auto-loads this package without symlinking it into `~/.pi-web/plugins`:
+This package is developed as a separate npm package, not as a bundled PI WEB plugin. From the PI WEB repository, the single root dev command builds, watches, and auto-loads this package without symlinking it into `~/.pi-web/plugins`:
 
 ```bash
 npm run dev
 ```
 
-Then reload Pi Web and check discovery:
+Then reload PI WEB and check discovery:
 
 ```bash
 curl http://127.0.0.1:8504/pi-web-plugins/manifest.json
@@ -68,7 +68,7 @@ npm pack --workspace @jmfederico/pi-web-actions --dry-run
 
 ## Beta/private API note
 
-This plugin intentionally dogfoods private Pi Web browser APIs for reading workspace files and creating/writing terminals. Those APIs are not yet stable public plugin APIs, so compatibility is best-effort and may require updates alongside Pi Web releases.
+This plugin intentionally dogfoods private PI WEB browser APIs for reading workspace files and creating/writing terminals. Those APIs are not yet stable public plugin APIs, so compatibility is best-effort and may require updates alongside PI WEB releases.
 
 ## Notes
 

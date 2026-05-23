@@ -1,4 +1,4 @@
-# Pi Web
+# PI WEB
 
 [![CI](https://github.com/jmfederico/pi-web/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jmfederico/pi-web/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@jmfederico/pi-web)](https://www.npmjs.com/package/@jmfederico/pi-web)
@@ -8,15 +8,15 @@
 
 Website: <https://pi-web.dev/>
 
-![Pi Web](docs/assets/pi-web-banner.png)
+![PI WEB](docs/assets/pi-web-banner.png)
 
 **Run AI coding agents on your own machine or server, keep them alive in real workspaces, and control everything from a browser.**
 
-Pi Web is a web control plane for [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent). Add your repositories once, open project workspaces and git worktrees, start agent sessions inside them, and come back later without losing the work. Your browser becomes the cockpit; your server becomes the persistent development environment. Start on your laptop, check in from your phone, and continue from an iPad or another machine whenever that is the device you have at hand.
+PI WEB is a web control plane for [Pi Coding Agent](https://github.com/earendil-works/pi/tree/main/packages/coding-agent). Add your repositories once, open project workspaces and git worktrees, start agent sessions inside them, and come back later without losing the work. Your browser becomes the cockpit; your server becomes the persistent development environment. Start on your laptop, check in from your phone, and continue from an iPad or another machine whenever that is the device you have at hand.
 
-![Pi Web demo](docs/assets/pi-web-demo.gif)
+![PI WEB demo](docs/assets/pi-web-demo.gif)
 
-With Pi Web you can:
+With PI WEB you can:
 
 - launch and supervise multiple coding-agent sessions in parallel;
 - keep sessions running when your browser disconnects or the UI restarts;
@@ -26,15 +26,15 @@ With Pi Web you can:
 - move fluidly between laptop, phone, tablet, and desktop without moving the development environment;
 - turn any server, desktop, or remote dev box into an agent-first development hub.
 
-## Why use Pi Web?
+## Why use PI WEB?
 
 Agentic development works best when agents are not trapped inside a single local terminal. They need stable environments, access to real repositories, and room to work across branches and tasks. Humans need the opposite: a clear place to supervise, redirect, review, and decide.
 
-Pi Web connects those two worlds. The work stays in the server-side environment while you move between devices: laptop for deep focus, phone for a quick check-in, tablet for review, desktop when you are back at a desk. It is not trying to recreate the old desktop IDE in a browser; it is a control surface for persistent, parallel, human-in-the-loop agent work.
+PI WEB connects those two worlds. The work stays in the server-side environment while you move between devices: laptop for deep focus, phone for a quick check-in, tablet for review, desktop when you are back at a desk. It is not trying to recreate the old desktop IDE in a browser; it is a control surface for persistent, parallel, human-in-the-loop agent work.
 
 ## Core model
 
-Pi Web organizes work into three levels:
+PI WEB organizes work into three levels:
 
 ```text
 Project     a folder on the server
@@ -65,7 +65,7 @@ This maps naturally to real development work:
 
 ## Architecture
 
-Pi Web uses a split-process architecture so agent runtimes are not owned by the browser-facing dev server.
+PI WEB uses a split-process architecture so agent runtimes are not owned by the browser-facing dev server.
 
 ```text
 Browser UI
@@ -90,7 +90,7 @@ The web process serves the API and browser UI. In development it can autoreload 
 
 ## State model
 
-Pi Web keeps its own state intentionally small:
+PI WEB keeps its own state intentionally small:
 
 - Projects: `~/.pi-web/projects.json`
 - Workspaces: discovered from git worktrees, not stored
@@ -99,18 +99,18 @@ Pi Web keeps its own state intentionally small:
 
 ## Plugins
 
-Pi Web production installs can load trusted local UI plugins without rebuilding Pi Web. Plugins are browser-side ES modules that can add action-palette actions, workspace panels, and workspace-label metadata. They do not run in the session daemon and are not sandboxed.
+PI WEB production installs can load trusted local UI plugins without rebuilding PI WEB. Plugins are browser-side ES modules that can add action-palette actions, workspace panels, and workspace-label metadata. They do not run in the session daemon and are not sandboxed.
 
 The supported package shape is intentionally singular: `piWeb.plugins` entries with explicit `id` and `module`, plus a browser module that exports `{ apiVersion: 1, name, activate }`. The bundled `pi-web-plugins/info` TypeScript source is the canonical minimal real example, and `pi-web-plugins/pi-web` demonstrates a dynamic status panel.
 
 A useful prompt for AI agents:
 
 ```text
-Build a Pi Web plugin for this project. Goal: <describe the UI behavior>.
+Build a PI WEB plugin for this project. Goal: <describe the UI behavior>.
 Before coding, read https://pi-web.dev/plugins.html and https://pi-web.dev/plugins.md.
-Create it under ~/.pi-web/plugins/<plugin-id> using the documented Pi Web v1 plugin API.
+Create it under ~/.pi-web/plugins/<plugin-id> using the documented PI WEB v1 plugin API.
 Validate with /pi-web-plugins/manifest.json and explain reload/debug steps.
-Do not modify Pi Web itself.
+Do not modify PI WEB itself.
 ```
 
 Reload the browser tab after adding or editing a plugin. If `PI_WEB_DATA_DIR` is set, use `$PI_WEB_DATA_DIR/plugins` instead of `~/.pi-web/plugins`. Check discovery with:
@@ -134,7 +134,7 @@ sudo loginctl enable-linger "$USER"
 pi-web install
 ```
 
-`loginctl enable-linger` is optional for local desktop use, but recommended on servers. It lets the user systemd manager start at boot and continue running after you log out, so Pi Web remains available without an active SSH/login session.
+`loginctl enable-linger` is optional for local desktop use, but recommended on servers. It lets the user systemd manager start at boot and continue running after you log out, so PI WEB remains available without an active SSH/login session.
 
 This writes and starts:
 
@@ -167,7 +167,7 @@ One-line install is also available for users who prefer it:
 curl -fsSL https://raw.githubusercontent.com/jmfederico/pi-web/main/install.sh | sh
 ```
 
-Pi Web is also published as a Pi package. Installing it through Pi exposes a `/pi-web` command inside Pi:
+PI WEB is also published as a Pi package. Installing it through Pi exposes a `/pi-web` command inside Pi:
 
 ```bash
 pi install npm:@jmfederico/pi-web
@@ -183,7 +183,7 @@ Then in Pi:
 /pi-web doctor
 ```
 
-The Pi command is a convenience wrapper around the same service installer. When installed this way, the service installer can use Pi Web's package-local server entrypoints, so `pi-web-server` and `pi-web-sessiond` do not need to be on your shell `PATH`. `/pi-web logs` shows the last 100 journal lines; use `pi-web logs` in a shell when you want to follow logs continuously.
+The Pi command is a convenience wrapper around the same service installer. When installed this way, the service installer can use PI WEB's package-local server entrypoints, so `pi-web-server` and `pi-web-sessiond` do not need to be on your shell `PATH`. `/pi-web logs` shows the last 100 journal lines; use `pi-web logs` in a shell when you want to follow logs continuously.
 
 Advanced users may run the binaries however they prefer:
 
@@ -231,9 +231,9 @@ npm publish --access public
 
 `prepack` builds `dist/` and bundled plugin JavaScript before npm creates the tarball, and `prepublishOnly` runs verification before publishing. Releases can also be published by the GitHub Actions npm workflow when a GitHub release is published.
 
-Pi Web uses a single-line CalVer-inspired npm version: `MAJOR.YYYYMM.SEQUENCE`, for example `1.202605.1`. The major number signals breaking-change eras; the middle number is the release month; the final number increments for additional releases in that month. Older major eras may be deprecated rather than maintained in parallel.
+PI WEB uses a single-line CalVer-inspired npm version: `MAJOR.YYYYMM.SEQUENCE`, for example `1.202605.1`. The major number signals breaking-change eras; the middle number is the release month; the final number increments for additional releases in that month. Older major eras may be deprecated rather than maintained in parallel.
 
-Pi Web declares `@earendil-works/pi-coding-agent` as a peer dependency (`>=0.74.0 <1`) and a development dependency for local builds. This keeps published installs flexible: npm 7+ installs the peer automatically, and users can upgrade the Pi package within the compatible range without Pi Web pinning a separate copy.
+PI WEB declares `@earendil-works/pi-coding-agent` as a peer dependency (`>=0.74.0 <1`) and a development dependency for local builds. This keeps published installs flexible: npm 7+ installs the peer automatically, and users can upgrade the Pi package within the compatible range without PI WEB pinning a separate copy.
 
 
 The web server defaults to `127.0.0.1:8504`. Set `PI_WEB_HOST=0.0.0.0` only when you intentionally want to bind directly on all interfaces.
@@ -248,7 +248,7 @@ Environment variables:
 
 - `PI_WEB_PORT` / `PORT` — web server port. Defaults to `8504`.
 - `PI_WEB_HOST` — web server bind host. Defaults to `127.0.0.1`.
-- `PI_WEB_DATA_DIR` — Pi Web data directory. Defaults to `~/.pi-web`.
+- `PI_WEB_DATA_DIR` — PI WEB data directory. Defaults to `~/.pi-web`.
 - `PI_WEB_SESSIOND_SOCKET` — Unix socket path used by both the daemon and web process when `PI_WEB_SESSIOND_URL` is not set. Defaults to `$PI_WEB_DATA_DIR/sessiond.sock`.
 - `PI_WEB_SESSIOND_PORT` — optional TCP port for the daemon. If unset, the daemon listens on the Unix socket instead.
 - `PI_WEB_SESSIOND_HOST` — daemon TCP bind host when `PI_WEB_SESSIOND_PORT` is set. Defaults to `127.0.0.1`.
@@ -267,7 +267,7 @@ Example units:
 ```ini
 # ~/.config/systemd/user/pi-web-sessiond.service
 [Unit]
-Description=Pi Web session daemon
+Description=PI WEB session daemon
 
 [Service]
 Type=simple
@@ -282,7 +282,7 @@ WantedBy=default.target
 ```ini
 # ~/.config/systemd/user/pi-web-ui-dev.service
 [Unit]
-Description=Pi Web UI dev server
+Description=PI WEB UI dev server
 After=pi-web-sessiond.service
 Wants=pi-web-sessiond.service
 
@@ -333,7 +333,7 @@ systemctl --user restart pi-web-sessiond.service
 
 ## Vision
 
-Pi Web is the beginning of an agent-first development environment:
+PI WEB is the beginning of an agent-first development environment:
 
 - agents run persistently on servers;
 - humans connect through the browser;

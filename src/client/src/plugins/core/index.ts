@@ -4,7 +4,7 @@ import { createCoreWorkspacePanels } from "./panels";
 
 export const corePlugin: PiWebPlugin = {
   apiVersion: 1,
-  name: "Pi Web Core",
+  name: "PI WEB Core",
   activate: () => ({
     contributions: {
       actions: createCoreActions(),

@@ -159,7 +159,7 @@ class PiWebActionsPanel extends HTMLElement {
 
   private openWorkspaceTerminal(terminalId?: string): void {
     if (this.openTerminalValue === undefined) {
-      this.status = { kind: "error", message: "This Pi Web version does not provide terminal navigation to plugins." };
+      this.status = { kind: "error", message: "This PI WEB version does not provide terminal navigation to plugins." };
       this.render();
       return;
     }

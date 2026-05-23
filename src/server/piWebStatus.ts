@@ -309,8 +309,8 @@ function buildMessages(components: PiWebStatusResponse["components"], release: P
     messages.push({
       id: "update-available",
       severity: "info",
-      title: "Pi Web update available",
-      body: `Pi Web ${release.latestVersion} is available${installedVersion === undefined ? "" : `; installed version is ${installedVersion}`}. Update Pi Web, then restart Pi Web services.`,
+      title: "PI WEB update available",
+      body: `PI WEB ${release.latestVersion} is available${installedVersion === undefined ? "" : `; installed version is ${installedVersion}`}. Update PI WEB, then restart PI WEB services.`,
       command: commands.update,
     });
   }
@@ -330,7 +330,7 @@ function buildMessages(components: PiWebStatusResponse["components"], release: P
       id: "sessiond-unavailable",
       severity: "warning",
       title: "Session daemon version unavailable",
-      body: `Pi Web could not check the session daemon version${components.sessiond.error === undefined ? "." : `: ${components.sessiond.error}`}`,
+      body: `PI WEB could not check the session daemon version${components.sessiond.error === undefined ? "." : `: ${components.sessiond.error}`}`,
       command: "systemctl --user status pi-web-sessiond.service",
     });
   } else if (components.sessiond.stale) {

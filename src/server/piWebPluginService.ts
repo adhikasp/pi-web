@@ -203,10 +203,10 @@ async function discoverPackageRoot(root: string, configuredPackage: ConfiguredPi
 async function discoverPluginEntries(root: string, config: PiWebPackageConfig): Promise<ArraylessPluginRecord[]> {
   const plugins: ArraylessPluginRecord[] = [];
   for (const entry of config.plugins) {
-    if (!isSafeRelativePath(entry.module)) throw new Error(`Unsafe Pi Web plugin module path for ${entry.id}: ${entry.module}`);
+    if (!isSafeRelativePath(entry.module)) throw new Error(`Unsafe PI WEB plugin module path for ${entry.id}: ${entry.module}`);
     const entryPath = join(root, entry.module);
     const entryStat = await stat(entryPath).catch(() => undefined);
-    if (entryStat?.isFile() !== true) throw new Error(`Pi Web plugin module not found for ${entry.id}: ${entry.module}`);
+    if (entryStat?.isFile() !== true) throw new Error(`PI WEB plugin module not found for ${entry.id}: ${entry.module}`);
     plugins.push({ id: entry.id, root, entryFile: entry.module, version: String(Math.floor(entryStat.mtimeMs)) });
   }
   return plugins;
@@ -227,24 +227,24 @@ async function readPiWebPackageConfig(root: string): Promise<PiWebPackageConfig 
 }
 
 function parsePluginEntries(piWeb: Record<string, unknown>, packagePath: string): PiWebPluginEntry[] {
-  if (piWeb["plugin"] !== undefined) throw new Error(`Unsupported Pi Web plugin metadata in ${packagePath}: use piWeb.plugins with { id, module } entries`);
+  if (piWeb["plugin"] !== undefined) throw new Error(`Unsupported PI WEB plugin metadata in ${packagePath}: use piWeb.plugins with { id, module } entries`);
   const plugins = piWeb["plugins"];
   if (plugins === undefined) return [];
-  if (!Array.isArray(plugins)) throw new Error(`Pi Web plugins must be an array in ${packagePath}`);
+  if (!Array.isArray(plugins)) throw new Error(`PI WEB plugins must be an array in ${packagePath}`);
 
   return plugins.map((entry, index): PiWebPluginEntry => {
-    if (!isRecord(entry)) throw new Error(`Pi Web plugin entry ${String(index + 1)} must be an object in ${packagePath}`);
+    if (!isRecord(entry)) throw new Error(`PI WEB plugin entry ${String(index + 1)} must be an object in ${packagePath}`);
     const id = entry["id"];
     const module = entry["module"];
-    if (typeof id !== "string" || !pluginIdPattern.test(id)) throw new Error(`Invalid Pi Web plugin id in ${packagePath}: ${String(id)}`);
-    if (typeof module !== "string" || module === "") throw new Error(`Invalid Pi Web plugin module for ${id} in ${packagePath}`);
+    if (typeof id !== "string" || !pluginIdPattern.test(id)) throw new Error(`Invalid PI WEB plugin id in ${packagePath}: ${String(id)}`);
+    if (typeof module !== "string" || module === "") throw new Error(`Invalid PI WEB plugin module for ${id} in ${packagePath}`);
     return { id, module };
   });
 }
 
 function addUnique(records: Map<string, PluginRecord>, plugin: PluginRecord): void {
   if (records.has(plugin.id)) {
-    warnInvalidPlugin(plugin.source, `Duplicate Pi Web plugin id: ${plugin.id}`);
+    warnInvalidPlugin(plugin.source, `Duplicate PI WEB plugin id: ${plugin.id}`);
     return;
   }
   records.set(plugin.id, plugin);
@@ -252,7 +252,7 @@ function addUnique(records: Map<string, PluginRecord>, plugin: PluginRecord): vo
 
 function warnInvalidPlugin(source: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
-  console.warn(`Skipping Pi Web plugin from ${source}: ${message}`);
+  console.warn(`Skipping PI WEB plugin from ${source}: ${message}`);
 }
 
 function isSafeRelativePath(path: string): boolean {

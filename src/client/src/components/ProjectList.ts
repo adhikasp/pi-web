@@ -92,7 +92,7 @@ export class ProjectList extends LitElement {
 
   private close(project: Project) {
     this.openMenuProjectId = undefined;
-    if (confirm(`Close ${project.name}?\n\nThis only removes it from Pi Web; it will not change the project folder.`)) this.onClose?.(project);
+    if (confirm(`Close ${project.name}?\n\nThis only removes it from PI WEB; it will not change the project folder.`)) this.onClose?.(project);
   }
 
   static override styles = listStyles;

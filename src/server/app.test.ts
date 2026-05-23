@@ -59,7 +59,7 @@ describe("buildApp", () => {
     expect(emptyListResponse.json<Project[]>()).toEqual([]);
   });
 
-  it("serves the Pi Web plugin manifest and plugin assets", async () => {
+  it("serves the PI WEB plugin manifest and plugin assets", async () => {
     const manifestResponse = await app.inject({ method: "GET", url: "/pi-web-plugins/manifest.json" });
     expect(manifestResponse.statusCode).toBe(200);
     expect(manifestResponse.json()).toEqual({ plugins: [{ id: "fake", module: "/pi-web-plugins/fake/plugin.js?v=1", source: "test", scope: "local" }] });
