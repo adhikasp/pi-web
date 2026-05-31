@@ -151,6 +151,10 @@ export class PiWebApp extends LitElement {
     }
   };
 
+  protected override willUpdate(): void {
+    this.toggleAttribute("pwa-display-mode", this.appShell.isPwaDisplayMode);
+  }
+
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("popstate", this.onPopState);
