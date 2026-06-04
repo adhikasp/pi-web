@@ -40,7 +40,7 @@ async function buildDirectory(sourceDir, targetDir) {
     }
 
     if (!entry.isFile()) continue;
-    if (entry.name.endsWith(".d.ts")) continue;
+    if (entry.name.endsWith(".d.ts") || isTestSource(entry.name)) continue;
 
     if (isPluginSource(entry.name)) {
       await buildFile(sourcePath, targetPath.replace(/\.ts$/u, ".js"));
@@ -92,6 +92,10 @@ async function findPluginDirs(dir) {
 
 function isPluginSource(fileName) {
   return fileName.endsWith(".ts") && !fileName.endsWith(".d.ts");
+}
+
+function isTestSource(fileName) {
+  return /\.(?:test|spec)\.ts$/u.test(fileName);
 }
 
 async function hasTypeScriptSource(javaScriptPath) {

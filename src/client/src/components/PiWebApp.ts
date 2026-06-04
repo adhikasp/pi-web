@@ -1,6 +1,6 @@
 import { LitElement, html } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
-import { piWebApi, terminalsApi, type Machine, type Project, type RealtimeEvent, type SessionInfo, type TerminalCommandRun, type TerminalUiEvent, type ThinkingLevel, type Workspace } from "../api";
+import { configApi, piWebApi, terminalsApi, type Machine, type PiWebConfigValues, type PiWebShortcutConfig, type Project, type RealtimeEvent, type SessionInfo, type TerminalCommandRun, type TerminalUiEvent, type ThinkingLevel, type Workspace } from "../api";
 import type { AppAction } from "../actions";
 import { initialAppState, type AppState } from "../appState";
 import { isSessionActive } from "../../../shared/activity";
@@ -27,6 +27,8 @@ import { AppShellController } from "../appShell/appShellController";
 import { MobileNavigationController, type NavigationSection } from "../appShell/navigationState";
 import { PanelCollapseController, mainViewClass } from "../appShell/panelCollapseController";
 import { readRoute, writeRoute, type AppRoute } from "../route";
+import { readSettingsSection, writeSettingsSection, type SettingsSection } from "../settingsRoute";
+import { applyShortcutPreferences } from "../shortcutPreferences";
 import { createTerminalCommandRunsRuntime } from "../runtime/terminalRuntime";
 import { isWorkspaceDeletionPending, isWorkspaceDeletionRunPending, latestWorkspaceDeletionRuns, pendingWorkspaceDeletionIds, targetWorkspaceIdForRun, workspaceDeletionMetadata, workspaceDeletionRunFilter } from "../workspaceDeletion";
 import "./MachineList";
@@ -42,11 +44,12 @@ import "./CommandPicker";
 import "./ActionPalette";
 import "./AuthDialog";
 import "./ProjectDialog";
+import "./SettingsDialog";
 import "./WorkspacePanel";
 import type { WorkspacePanelEmptyState } from "./WorkspacePanel";
 import "./appShell/AppContextBar";
 import "./appShell/AppMobileMainTabs";
-import type { AppMobileMainTab } from "./appShell/AppMobileMainTabs";
+import type { AppMobileMainTab, AppMobileMainTabIcon } from "./appShell/AppMobileMainTabs";
 import "./appShell/AppNavigationPanel";
 import "./appShell/AppPanelEdgeControl";
 import "./appShell/AppRefreshControl";
@@ -131,7 +134,12 @@ export class PiWebApp extends LitElement {
   private themePreference: ThemePreference = readStoredThemePreference() ?? DEFAULT_THEME_PREFERENCE;
   @state() private activeThemeId: QualifiedContributionId = CLASSIC_THEME_ID;
   @state() private isRefreshingApp = false;
-  private readonly onPopState = () => void this.withChatScrollTransition(() => this.restoreRoute(false));
+  @state() private settingsSection: SettingsSection | undefined = readSettingsSection();
+  @state() private shortcutConfig: PiWebShortcutConfig = {};
+  private readonly onPopState = () => void this.withChatScrollTransition(async () => {
+    this.restoreSettingsRoute();
+    await this.restoreRoute(false);
+  });
   private readonly onPageShow = () => {
     this.appShell.repairViewportPosition();
   };
@@ -178,6 +186,7 @@ export class PiWebApp extends LitElement {
     this.piWebStatusTimer = window.setInterval(() => { void this.refreshPiWebStatus(); }, PI_WEB_STATUS_REFRESH_MS);
     void this.refreshPiWebStatus();
     void this.refreshWorkspaceActivity();
+    void this.loadClientConfig();
     void this.loadExternalPlugins();
     void this.loadProjectsAndRestoreRoute();
   }
@@ -211,6 +220,7 @@ export class PiWebApp extends LitElement {
   }
 
   private async loadProjectsAndRestoreRoute() {
+    this.restoreSettingsRoute();
     const route = readRoute();
     await this.machines.loadMachines(route.machineId);
     const machineFallbackMessage = this.state.error;
@@ -238,6 +248,18 @@ export class PiWebApp extends LitElement {
     }
   }
 
+  private async loadClientConfig(): Promise<void> {
+    try {
+      this.applyClientConfig((await configApi.config()).config);
+    } catch (error) {
+      console.warn("Failed to load PI WEB config", error);
+    }
+  }
+
+  private applyClientConfig(config: PiWebConfigValues): void {
+    this.shortcutConfig = config.shortcuts ?? {};
+  }
+
   private async refreshAppData(): Promise<void> {
     if (this.isRefreshingApp) return;
     this.isRefreshingApp = true;
@@ -246,6 +268,7 @@ export class PiWebApp extends LitElement {
         this.sessions.refreshSelectedSession(),
         this.refreshPiWebStatus(),
         this.refreshWorkspaceActivity(),
+        this.loadClientConfig(),
         this.refreshWorkspaceDeletionRuns(),
         this.refreshCurrentWorkspaceSurface(),
       ]);
@@ -445,6 +468,25 @@ export class PiWebApp extends LitElement {
     this.setState({ mainView: view });
     this.updateUrl();
     this.git.updatePolling();
+  }
+
+  private openSettings(section: SettingsSection = "general"): void {
+    this.settingsSection = section;
+    writeSettingsSection(section);
+  }
+
+  private closeSettings(): void {
+    this.settingsSection = undefined;
+    writeSettingsSection(undefined);
+  }
+
+  private navigateSettings(section: SettingsSection): void {
+    this.settingsSection = section;
+    writeSettingsSection(section);
+  }
+
+  private restoreSettingsRoute(): void {
+    this.settingsSection = readSettingsSection();
   }
 
   private handleWorkspaceChange(previous: AppState, next: AppState) {
@@ -695,12 +737,19 @@ export class PiWebApp extends LitElement {
     return "Select a project and workspace to start a session.";
   }
 
-  private renderMobilePanelTitle(panel: QualifiedWorkspacePanelContribution) {
+  private mobilePanelBadge(panel: QualifiedWorkspacePanelContribution): unknown {
     const workspace = this.state.selectedWorkspace;
-    if (workspace === undefined) return panel.title;
-    const badge = panel.badge?.(this.createWorkspacePanelContext(workspace));
-    if (badge === undefined || badge === "") return panel.title;
-    return html`${panel.title} <span class="tab-badge">${badge}</span>`;
+    if (workspace === undefined) return undefined;
+    return panel.badge?.(this.createWorkspacePanelContext(workspace));
+  }
+
+  private mobilePanelIcon(panel: QualifiedWorkspacePanelContribution): AppMobileMainTabIcon | undefined {
+    switch (panel.id) {
+      case "core:workspace.files": return "files";
+      case "core:workspace.git": return "git";
+      case "core:workspace.terminal": return "terminal";
+      default: return undefined;
+    }
   }
 
   private createWorkspacePanelContext(workspace: Workspace): WorkspacePanelContext {
@@ -733,7 +782,7 @@ export class PiWebApp extends LitElement {
   }
 
   private getActions(): AppAction[] {
-    return this.plugins.getActions(this.createPluginRuntimeContext());
+    return applyShortcutPreferences(this.plugins.getActions(this.createPluginRuntimeContext()), this.shortcutConfig);
   }
 
   private async loadExternalPlugins(): Promise<void> {
@@ -756,7 +805,10 @@ export class PiWebApp extends LitElement {
   private createPluginRuntimeContext(): PluginRuntimeContext {
     const createContext = (origin: string): PluginRuntimeContext => installPluginRuntimeScope({
       state: this.state,
-      piWebInternal: { terminalCommandRuns: this.terminalCommandRunsForOrigin(origin) },
+      piWebInternal: {
+        terminalCommandRuns: this.terminalCommandRunsForOrigin(origin),
+        openSettings: (section) => { this.openSettings(section); },
+      },
       openActionPalette: () => { this.setState({ actionPaletteOpen: true }); },
       focusPrompt: () => { this.promptEditor?.focusInput(); },
       addProject: () => { this.setState({ projectDialogOpen: true }); },
@@ -1070,6 +1122,7 @@ export class PiWebApp extends LitElement {
         .session=${this.state.selectedSession}
         .refreshControl=${this.appShell.shouldShowAppRefreshInContextBar() ? this.renderAppRefresh() : undefined}
         .onOpenSection=${(section: NavigationSection) => { this.openNavigationSection(section); }}
+        .onShowActions=${() => { this.setState({ actionPaletteOpen: true }); }}
       ></app-context-bar>
     `;
   }
@@ -1086,9 +1139,17 @@ export class PiWebApp extends LitElement {
 
   private mobileMainTabs(): AppMobileMainTab[] {
     return [
-      { id: "navigation", label: "Sessions", className: "navigation-tab" },
-      { id: "chat", label: "Chat" },
-      ...this.visibleWorkspacePanels().map((panel): AppMobileMainTab => ({ id: panel.id, label: this.renderMobilePanelTitle(panel) })),
+      { id: "navigation", label: "Sessions", icon: "navigation", className: "navigation-tab" },
+      { id: "chat", label: "Chat", icon: "chat" },
+      ...this.visibleWorkspacePanels().map((panel): AppMobileMainTab => {
+        const icon = panel.icon ?? this.mobilePanelIcon(panel);
+        return {
+          id: panel.id,
+          label: panel.title,
+          ...(icon === undefined ? {} : { icon }),
+          badge: this.mobilePanelBadge(panel),
+        };
+      }),
     ];
   }
 
@@ -1122,6 +1183,7 @@ export class PiWebApp extends LitElement {
         ${state.actionPaletteOpen ? html`<action-palette .actions=${this.getActions()} .onRun=${(action: AppAction) => { this.setState({ actionPaletteOpen: false }); this.runAction(action); }} .onCancel=${() => { this.setState({ actionPaletteOpen: false }); }}></action-palette>` : null}
         ${state.projectDialogOpen ? html`<project-dialog .machineId=${selectedMachineId(state)} .onSubmit=${(path: string, create: boolean) => this.projects.addProject(path, create)} .onCancel=${() => { this.setState({ projectDialogOpen: false }); }}></project-dialog>` : null}
         ${state.themeDialog !== undefined ? html`<command-picker title=${state.themeDialog.title} .options=${state.themeDialog.options} .selectedValue=${state.themeDialog.selectedValue} .onPick=${(value: string) => { this.pickTheme(value); }} .onCancel=${() => { this.setState({ themeDialog: undefined }); }}></command-picker>` : null}
+        ${this.settingsSection !== undefined ? html`<settings-dialog .section=${this.settingsSection} .actions=${this.getActions()} .onNavigate=${(section: SettingsSection) => { this.navigateSettings(section); }} .onClose=${() => { this.closeSettings(); }} .onConfigSaved=${(config: PiWebConfigValues) => { this.applyClientConfig(config); }}></settings-dialog>` : null}
       </div>
     `;
   }

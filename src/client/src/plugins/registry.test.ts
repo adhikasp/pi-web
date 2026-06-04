@@ -18,6 +18,7 @@ function createContext(statePatch: Partial<AppState> = {}) {
         getCommandRun: vi.fn(),
         open: vi.fn((options?: { terminalId?: string | undefined }) => { calls.push(`terminal.open:${options?.terminalId ?? ""}`); }),
       },
+      openSettings: vi.fn(() => { calls.push("openSettings"); }),
     },
     openActionPalette: vi.fn(() => { calls.push("openActionPalette"); }),
     focusPrompt: vi.fn(() => { calls.push("focusPrompt"); }),
@@ -52,6 +53,31 @@ describe("PluginRegistry", () => {
 
     expect(registry.getActions(createContext().context).some((action) => action.id === "core:actions.show")).toBe(true);
     expect(registry.getWorkspacePanels().map((panel) => panel.id)).toEqual(["core:workspace.files", "core:workspace.git", "core:workspace.terminal"]);
+  });
+
+  it("provides html and svg helpers to plugin activation", () => {
+    const registry = new PluginRegistry();
+    registry.register({
+      id: "example",
+      plugin: {
+        apiVersion: 1,
+        name: "Example",
+        activate: ({ html, svg }) => ({
+          contributions: {
+            workspacePanels: [
+              {
+                id: "workspace.logs",
+                title: "Logs",
+                icon: svg`<svg viewBox="0 0 24 24"><path d="M4 6h16"></path></svg>`,
+                render: () => html`<p>Logs</p>`,
+              },
+            ],
+          },
+        }),
+      },
+    });
+
+    expect(registry.getWorkspacePanels()[0]?.icon).toBeDefined();
   });
 
   it("rejects duplicate ids within the same namespace", () => {
@@ -146,7 +172,7 @@ describe("PluginRegistry", () => {
     expect(calls).toEqual(["refreshGit"]);
   });
 
-  it("routes app refresh and reload actions through the runtime context", () => {
+  it("routes app refresh, reload, and settings actions through the runtime context", () => {
     const registry = new PluginRegistry();
     registry.register({ id: "core", plugin: corePlugin });
     const { context, calls } = createContext();
@@ -154,8 +180,9 @@ describe("PluginRegistry", () => {
 
     void actions.find((candidate) => candidate.id === "core:app.refresh-data")?.run();
     void actions.find((candidate) => candidate.id === "core:app.reload-page")?.run();
+    void actions.find((candidate) => candidate.id === "core:settings.open")?.run();
 
-    expect(calls).toEqual(["refreshAppData", "reloadPage"]);
+    expect(calls).toEqual(["refreshAppData", "reloadPage", "openSettings"]);
   });
 
   it("exposes terminal navigation as a shortcut-backed action", () => {
@@ -179,6 +206,7 @@ describe("PluginRegistry", () => {
 
     expect(shortcuts).toEqual([
       ["core:actions.show", "mod+k"],
+      ["core:settings.open", "mod+,"],
       ["core:view.chat", "mod+1"],
       ["core:view.files", "mod+2"],
       ["core:view.git", "mod+3"],

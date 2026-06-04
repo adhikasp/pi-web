@@ -4,6 +4,7 @@ export type PluginId = string;
 export type LocalContributionId = string;
 export type QualifiedContributionId = string;
 export type HtmlTemplateTag = (strings: TemplateStringsArray, ...values: unknown[]) => TemplateResult;
+export type SvgTemplateTag = (strings: TemplateStringsArray, ...values: unknown[]) => TemplateResult;
 
 export interface PiWebPlugin {
   apiVersion: 1;
@@ -15,6 +16,7 @@ export interface PluginActivationContext {
   apiVersion: 1;
   pluginId: PluginId;
   html: HtmlTemplateTag;
+  svg: SvgTemplateTag;
 }
 
 export interface PluginActivationResult {
@@ -84,9 +86,12 @@ export interface WorkspacePanelContext {
   openTerminal: (options?: { terminalId?: string | undefined }) => void;
 }
 
+export type WorkspacePanelIcon = TemplateResult;
+
 export interface WorkspacePanelContribution {
   id: LocalContributionId;
   title: string;
+  icon?: WorkspacePanelIcon;
   order?: number;
   visible?: (context: WorkspacePanelContext) => boolean;
   badge?: (context: WorkspacePanelContext) => string | number | TemplateResult | undefined;

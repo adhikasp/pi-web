@@ -11,6 +11,7 @@ export class AppContextBar extends LitElement {
   @property({ attribute: false }) session?: SessionInfo;
   @property({ attribute: false }) refreshControl: unknown;
   @property({ attribute: false }) onOpenSection?: (section: NavigationSection) => void;
+  @property({ attribute: false }) onShowActions?: () => void;
   @query(".context-items") private contextItems?: HTMLElement | null;
   @state() private canScrollLeft = false;
   @state() private canScrollRight = false;
@@ -68,17 +69,33 @@ export class AppContextBar extends LitElement {
             </button>
           </li>
         </ol>
-        ${this.refreshControl === undefined ? null : html`<div class="context-actions">${this.refreshControl}</div>`}
+        ${this.hasContextActions() ? html`<div class="context-actions">${this.renderActionsButton()}${this.refreshControl}</div>` : null}
       </nav>
+    `;
+  }
+
+  private renderActionsButton() {
+    if (this.onShowActions === undefined) return null;
+    return html`
+      <button type="button" class="context-action-button" title="Show Actions" aria-label="Show Actions" @click=${(event: MouseEvent) => { event.stopPropagation(); this.onShowActions?.(); }}>
+        <svg class="context-action-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M13 2 4 14h7l-1 8 10-13h-7V2Z"></path>
+        </svg>
+      </button>
     `;
   }
 
   private contextBarClass(): string {
     const classes = ["context-bar"];
-    if (this.refreshControl !== undefined) classes.push("has-context-actions");
+    if (this.hasContextActions()) classes.push("has-context-actions");
+    if (this.refreshControl !== undefined && this.onShowActions !== undefined) classes.push("has-context-actions-double");
     if (this.canScrollLeft) classes.push("can-scroll-left");
     if (this.canScrollRight) classes.push("can-scroll-right");
     return classes.join(" ");
+  }
+
+  private hasContextActions(): boolean {
+    return this.refreshControl !== undefined || this.onShowActions !== undefined;
   }
 
   private observeContextItems(): void {
@@ -113,7 +130,8 @@ export class AppContextBar extends LitElement {
   };
 
   static override styles = css`
-    :host { flex: 0 0 auto; min-width: 0; }
+    /* Keep the refresh menu in this shadow tree above the following mobile tab strip. */
+    :host { position: relative; z-index: 20; flex: 0 0 auto; min-width: 0; }
     .context-bar { position: relative; flex: 0 0 auto; min-width: 0; display: flex; align-items: center; gap: 0; padding: 6px 0; border-bottom: 1px solid var(--pi-border-muted); background: var(--pi-bg); }
     .context-bar::before, .context-bar::after { content: ""; position: absolute; top: 0; bottom: 0; z-index: 2; width: 20px; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
     .context-bar::before { left: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--pi-shadow-strong) 55%, transparent) 0%, transparent 100%); }
@@ -121,11 +139,15 @@ export class AppContextBar extends LitElement {
     .context-bar.can-scroll-left::before, .context-bar.can-scroll-right::after { opacity: 1; }
     .context-bar-label { display: none; }
     .context-items { flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch; gap: 5px; margin: 0; padding: 0 8px; list-style: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-padding-inline: 8px; scrollbar-width: thin; }
-    .context-bar.has-context-actions .context-items { padding-right: 52px; scroll-padding-inline: 8px 52px; }
+    .context-bar.has-context-actions .context-items { padding-right: 58px; scroll-padding-inline: 8px 58px; }
+    .context-bar.has-context-actions-double .context-items { padding-right: 102px; scroll-padding-inline: 8px 102px; }
     .context-item { flex: 0 0 auto; min-width: 0; display: flex; }
-    .context-actions { position: absolute; top: 6px; right: 0; bottom: 6px; z-index: 3; display: flex; align-items: center; padding: 0 8px 0 0; pointer-events: none; }
-    .context-actions::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; z-index: 0; width: 26px; background: var(--pi-bg); pointer-events: none; }
-    app-refresh-control { pointer-events: auto; }
+    .context-actions { position: absolute; top: 6px; right: 0; bottom: 6px; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 0 8px; background: var(--pi-bg); pointer-events: none; }
+    .context-actions::before { content: ""; position: absolute; top: 0; bottom: 0; left: -24px; z-index: 0; width: 24px; background: linear-gradient(90deg, transparent, var(--pi-bg)); pointer-events: none; }
+    app-refresh-control, .context-action-button { position: relative; z-index: 1; pointer-events: auto; }
+    .context-action-button { box-sizing: border-box; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--pi-border); border-radius: 999px; background: var(--pi-surface); color: var(--pi-text); padding: 0; line-height: 1; }
+    .context-action-button:hover, .context-action-button:focus-visible { border-color: var(--pi-accent); background: var(--pi-selection-bg); }
+    .context-action-icon { width: 18px; height: 18px; fill: currentColor; pointer-events: none; }
     .context-chip { flex: 0 0 auto; min-width: 0; display: inline-flex; align-items: baseline; gap: 5px; border: 1px solid var(--pi-border-muted); border-radius: 999px; background: var(--pi-surface); color: var(--pi-text); padding: 4px 8px; font: inherit; text-align: left; }
     .context-chip:hover { background: var(--pi-surface-hover); }
     .context-chip:focus-visible { outline: 2px solid var(--pi-accent); outline-offset: 2px; }

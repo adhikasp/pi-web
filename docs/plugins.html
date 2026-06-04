@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>PI WEB plugins</title>
-    <meta name="description" content="Use and develop trusted local PI WEB UI plugins." />
+    <meta name="description" content="Use built-in PI WEB plugins and develop trusted local UI plugins." />
     <meta property="og:title" content="PI WEB plugins" />
     <meta property="og:image" content="assets/pi-web-banner.png" />
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
@@ -52,7 +52,7 @@
       <section class="page-hero">
         <div class="container">
           <p class="eyebrow"><span class="pulse"></span> Plugin development</p>
-          <h1>Customize PI WEB with local UI plugins.</h1>
+          <h1>Customize PI WEB with UI plugins.</h1>
           <p>
             Plugins are trusted browser-side ES modules. They can add actions, workspace panels, and compact workspace
             labels to the PI WEB UI.
@@ -67,6 +67,8 @@
             <a href="#extend">What can be extended</a>
             <a href="#ask-ai">What to ask AI to build</a>
             <a href="#example">Canonical example</a>
+            <a href="#built-in-plugins">Built-in plugins</a>
+            <a href="#manage-plugins">Manage plugins</a>
             <a href="#production">Production usage</a>
             <a href="#agent-docs">AI-friendly docs</a>
             <a href="#develop">Develop and debug</a>
@@ -160,8 +162,130 @@ After editing, check the manifest endpoint and browser-console failure cases.</c
                 If you copy it, choose a new plugin id so it does not conflict with the bundled <code>info</code> plugin.
               </p>
               <p>
-                The bundled <code>pi-web</code> status plugin demonstrates dynamic <code>visible</code> and <code>badge</code>
+                The bundled <code>updates</code> plugin demonstrates dynamic <code>visible</code> and <code>badge</code>
                 callbacks for tabs that only appear when the host has status messages or needs extra install visibility.
+              </p>
+            </section>
+
+            <section id="built-in-plugins">
+              <h2>Built-in plugins</h2>
+              <p>
+                PI WEB ships core, discoverable plugins in the main <code>@jmfederico/pi-web</code> npm package. No
+                separate <code>pi install</code> step is required: update PI WEB, reload the browser tab, and the bundled
+                plugins appear in <code>/pi-web-plugins/manifest.json</code>.
+              </p>
+              <p>
+                Built-in plugins can be managed from <strong>Settings → Plugins</strong> or with the top-level
+                <code>plugins</code> config key.
+              </p>
+
+              <h3>Updates</h3>
+              <p>
+                <strong>Updates</strong> adds a conditional <strong>Updates</strong> workspace tab with PI WEB update,
+                restart, and installed-service guidance. It is built into PI WEB and enabled by default.
+              </p>
+              <ul>
+                <li>Plugin id: <code>updates</code></li>
+              </ul>
+              <div class="code-card">
+                <div class="copy-row">
+                  <strong>Disable Updates</strong>
+                  <button class="copy-button" data-copy="#updates-disable">Copy</button>
+                </div>
+                <pre id="updates-disable"><code>{
+  "plugins": {
+    "updates": { "enabled": false }
+  }
+}</code></pre>
+              </div>
+
+              <h3>Workspace Tasks</h3>
+              <p>
+                <strong>Workspace Tasks</strong> adds a <strong>Tasks</strong> workspace tab for running configured shell
+                commands in dedicated PI WEB terminals. It is built into PI WEB and enabled by default.
+              </p>
+              <ul>
+                <li>Plugin id: <code>workspace-tasks</code></li>
+                <li>Config file: <code>.pi-web/tasks.json</code></li>
+              </ul>
+              <div class="code-card">
+                <div class="copy-row">
+                  <strong>Disable Workspace Tasks</strong>
+                  <button class="copy-button" data-copy="#workspace-tasks-disable">Copy</button>
+                </div>
+                <pre id="workspace-tasks-disable"><code>{
+  "plugins": {
+    "workspace-tasks": { "enabled": false }
+  }
+}</code></pre>
+              </div>
+              <div class="code-card">
+                <div class="copy-row">
+                  <strong>Example .pi-web/tasks.json</strong>
+                  <button class="copy-button" data-copy="#workspace-tasks-config">Copy</button>
+                </div>
+                <pre id="workspace-tasks-config"><code>{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "docker.start",
+      "title": "Start Docker",
+      "group": "Docker",
+      "description": "Start the local Docker Compose environment.",
+      "command": "./docker/scripts/docker-compose-dev up -d"
+    },
+    {
+      "id": "db.reset",
+      "title": "Reset DB",
+      "group": "Database",
+      "command": "go -C klingit-go run ./cli db reset",
+      "confirm": true
+    }
+  ]
+}</code></pre>
+              </div>
+              <p>
+                Open a workspace, choose the <strong>Tasks</strong> tab, and click <strong>Run</strong> next to a task.
+                Commands run in the workspace root because PI WEB creates the terminal for that workspace.
+              </p>
+              <p>
+                Review task configs before running them, especially in shared projects. Workspace Tasks runs trusted
+                shell commands from your repositories.
+              </p>
+            </section>
+
+            <section id="manage-plugins">
+              <h2>Manage plugins</h2>
+              <p>
+                Open <strong>Settings → Plugins</strong> to review discovered bundled, local, dev, and Pi package plugins.
+                PI WEB can disable any discovered plugin before the browser imports it. Core app contributions such as
+                the command palette, base workspace tools, and themes are not managed through this plugin list.
+              </p>
+              <div class="code-card">
+                <div class="copy-row">
+                  <strong>Plugin config shape</strong>
+                  <button class="copy-button" data-copy="#plugin-config-shape">Copy</button>
+                </div>
+                <pre id="plugin-config-shape"><code>{
+  "plugins": {
+    "workspace-tasks": {
+      "enabled": true,
+      "settings": {}
+    },
+    "info": {
+      "enabled": false
+    }
+  }
+}</code></pre>
+              </div>
+              <p>
+                Plugins are enabled by default. Set <code>enabled</code> to <code>false</code> to remove a plugin from
+                <code>/pi-web-plugins/manifest.json</code> so it is not imported or activated on the next page load.
+                The optional <code>settings</code> object is reserved for plugin-specific settings.
+              </p>
+              <p>
+                After changing plugin enablement, reload the PI WEB browser tab. Already-loaded plugin JavaScript is not
+                unloaded from the current page.
               </p>
             </section>
 

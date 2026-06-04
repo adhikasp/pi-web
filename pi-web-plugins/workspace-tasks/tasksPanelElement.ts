@@ -1,21 +1,21 @@
 import type { Workspace } from "@jmfederico/pi-web/plugin-api";
-import { ACTIONS_CONFIG_PATH, type WorkspaceAction } from "./config.js";
-import { runWorkspaceActionInTerminal } from "./actionRunner.js";
+import { TASKS_CONFIG_PATH, type WorkspaceTask } from "./config.js";
+import { runWorkspaceTaskInTerminal } from "./taskRunner.js";
 import { requestPiWebRender } from "./piWebPrivateUi.js";
 import type { InternalTerminalCommandRunsRuntime } from "./piWebInternal.js";
-import { actionsConfigRefreshHint, actionsConfigUnavailableMessage, loadWorkspaceActionsConfig, type WorkspaceActionsConfigLoadResult } from "./workspaceActionsClient.js";
+import { loadWorkspaceTasksConfig, tasksConfigRefreshHint, tasksConfigUnavailableMessage, type WorkspaceTasksConfigLoadResult } from "./workspaceTasksClient.js";
 
-export const actionsPanelTagName = "pi-web-actions-panel";
+export const tasksPanelTagName = "pi-web-workspace-tasks-panel";
 
 export type OpenTerminal = (options?: { terminalId?: string | undefined }) => void;
 
-const configChangedEvent = "pi-web-actions-config-changed";
+const configChangedEvent = "pi-web-workspace-tasks-config-changed";
 
 type ConfigState =
   | { kind: "loading" }
-  | WorkspaceActionsConfigLoadResult;
+  | WorkspaceTasksConfigLoadResult;
 
-interface ActionStatus {
+interface TaskStatus {
   kind: "info" | "success" | "error";
   message: string;
   detail?: string;
@@ -23,23 +23,23 @@ interface ActionStatus {
 
 const configCache = new Map<string, ConfigState>();
 
-export function defineActionsPanelElement(): void {
-  if (!customElements.get(actionsPanelTagName)) customElements.define(actionsPanelTagName, PiWebActionsPanel);
+export function defineTasksPanelElement(): void {
+  if (!customElements.get(tasksPanelTagName)) customElements.define(tasksPanelTagName, PiWebTasksPanel);
 }
 
-export function actionsPanelBadge(workspace: Workspace): string | number | undefined {
+export function tasksPanelBadge(workspace: Workspace): string | number | undefined {
   const state = getCachedWorkspaceConfig(workspace);
   if (state?.kind === "unavailable") return "!";
-  if (state?.kind === "loaded" && state.config.actions.length > 0) return state.config.actions.length;
+  if (state?.kind === "loaded" && state.config.tasks.length > 0) return state.config.tasks.length;
   return undefined;
 }
 
-class PiWebActionsPanel extends HTMLElement {
+class PiWebTasksPanel extends HTMLElement {
   private workspaceValue: Workspace | undefined;
   private openTerminalValue: OpenTerminal | undefined;
   private terminalCommandRunsValue: InternalTerminalCommandRunsRuntime | undefined;
-  private runningActionId: string | undefined;
-  private status: ActionStatus | undefined;
+  private runningTaskId: string | undefined;
+  private status: TaskStatus | undefined;
   private readonly root: ShadowRoot;
   private readonly onConfigChanged = () => {
     this.render();
@@ -57,7 +57,7 @@ class PiWebActionsPanel extends HTMLElement {
     // Parent app updates should not rebuild this shadow DOM for the same workspace:
     // doing so resets the mobile scroll position and can replace buttons mid-click.
     if (previousKey === nextKey) return;
-    this.runningActionId = undefined;
+    this.runningTaskId = undefined;
     this.status = undefined;
     this.render();
   }
@@ -82,22 +82,22 @@ class PiWebActionsPanel extends HTMLElement {
   private render(): void {
     const workspace = this.workspaceValue;
     if (workspace === undefined) {
-      this.root.innerHTML = `${actionStyles()}<section class="empty">Select a workspace.</section>`;
+      this.root.innerHTML = `${taskStyles()}<section class="empty">Select a workspace.</section>`;
       return;
     }
 
     const state = getOrLoadWorkspaceConfig(workspace);
     this.root.innerHTML = `
-      ${actionStyles()}
+      ${taskStyles()}
       <section class="toolbar">
-        <strong>Workspace Actions</strong>
-        <span class="toolbar-actions">
+        <strong>Workspace Tasks</strong>
+        <span class="toolbar-tasks">
           <button class="secondary" data-refresh-config ${state.kind === "loading" ? "disabled" : ""}>Refresh</button>
           <button class="secondary" data-open-terminal>Open Terminal</button>
         </span>
       </section>
       ${this.renderStatus()}
-      <section class="viewer actions-viewer">
+      <section class="viewer tasks-viewer">
         ${this.renderConfigState(state)}
       </section>
     `;
@@ -106,9 +106,9 @@ class PiWebActionsPanel extends HTMLElement {
       void this.refreshConfig(workspace);
     });
 
-    for (const button of this.root.querySelectorAll("button[data-action-id]")) {
+    for (const button of this.root.querySelectorAll("button[data-task-id]")) {
       button.addEventListener("click", () => {
-        void this.dispatchActionById(workspace, button.getAttribute("data-action-id"));
+        void this.dispatchTaskById(workspace, button.getAttribute("data-task-id"));
       });
     }
 
@@ -117,15 +117,15 @@ class PiWebActionsPanel extends HTMLElement {
     });
   }
 
-  private dispatchActionById(workspace: Workspace, actionId: string | null): Promise<void> {
+  private dispatchTaskById(workspace: Workspace, taskId: string | null): Promise<void> {
     if (!this.isCurrentWorkspace(workspace)) return Promise.resolve();
-    const action = actionFromConfigState(getCachedWorkspaceConfig(workspace), actionId);
-    if (action === undefined) {
-      this.status = { kind: "error", message: "That action is no longer available. Click Refresh, then try again." };
+    const task = taskFromConfigState(getCachedWorkspaceConfig(workspace), taskId);
+    if (task === undefined) {
+      this.status = { kind: "error", message: "That task is no longer available. Click Refresh, then try again." };
       this.render();
       return Promise.resolve();
     }
-    return this.dispatchAction(workspace, action);
+    return this.dispatchTask(workspace, task);
   }
 
   private isCurrentWorkspace(workspace: Workspace): boolean {
@@ -133,13 +133,14 @@ class PiWebActionsPanel extends HTMLElement {
   }
 
   private renderConfigState(state: ConfigState): string {
-    if (state.kind === "loading") return `<p class="muted">Loading ${escapeHtml(ACTIONS_CONFIG_PATH)}…</p>`;
+    if (state.kind === "loading") return `<p class="muted">Loading ${escapeHtml(TASKS_CONFIG_PATH)}…</p>`;
     if (state.kind === "missing") return renderMissingState(state);
     if (state.kind === "unavailable") return renderUnavailableState(state);
-    if (state.config.actions.length === 0) return `<p class="muted">No actions are defined in ${escapeHtml(ACTIONS_CONFIG_PATH)}. Add actions to the file, then click Refresh.</p>`;
+
+    if (state.config.tasks.length === 0) return `<p class="muted">No tasks are defined in ${escapeHtml(state.path)}. Add tasks to the file, then click Refresh.</p>`;
     return `
-      <p class="muted">Actions run in a dedicated workspace terminal, then switch to that terminal. Edit ${escapeHtml(ACTIONS_CONFIG_PATH)} and click Refresh to reload.</p>
-      ${renderActionGroups(state.config.actions, this.runningActionId)}
+      <p class="muted">Tasks run in a dedicated workspace terminal, then switch to that terminal. Edit ${escapeHtml(state.path)} and click Refresh to reload.</p>
+      ${renderTaskGroups(state.config.tasks, this.runningTaskId)}
     `;
   }
 
@@ -150,26 +151,26 @@ class PiWebActionsPanel extends HTMLElement {
   }
 
   private async refreshConfig(workspace: Workspace): Promise<void> {
-    this.status = { kind: "info", message: `Refreshing ${ACTIONS_CONFIG_PATH}…` };
+    this.status = { kind: "info", message: `Refreshing ${TASKS_CONFIG_PATH}…` };
     configCache.set(cacheKeyForWorkspace(workspace), { kind: "loading" });
     this.render();
 
     const state = await refreshWorkspaceConfig(workspace);
     if (!this.isCurrentWorkspace(workspace)) return;
     this.status = state.kind === "loaded"
-      ? { kind: "success", message: `Loaded ${String(state.config.actions.length)} action${state.config.actions.length === 1 ? "" : "s"}.` }
+      ? { kind: "success", message: `Loaded ${String(state.config.tasks.length)} task${state.config.tasks.length === 1 ? "" : "s"}.` }
       : undefined;
     this.render();
   }
 
-  private async dispatchAction(workspace: Workspace, action: WorkspaceAction): Promise<void> {
-    if (this.runningActionId !== undefined) {
-      this.status = { kind: "info", message: "Another action is already starting. Wait for it to finish dispatching, then try again." };
+  private async dispatchTask(workspace: Workspace, task: WorkspaceTask): Promise<void> {
+    if (this.runningTaskId !== undefined) {
+      this.status = { kind: "info", message: "Another task is already starting. Wait for it to finish dispatching, then try again." };
       this.render();
       return;
     }
-    if (action.confirm && !window.confirm(`Run ${action.title}?\n\n${action.command}`)) {
-      this.status = { kind: "info", message: `Cancelled ${action.title}.` };
+    if (task.confirm && !window.confirm(`Run ${task.title}?\n\n${task.command}`)) {
+      this.status = { kind: "info", message: `Cancelled ${task.title}.` };
       this.render();
       return;
     }
@@ -181,23 +182,23 @@ class PiWebActionsPanel extends HTMLElement {
       return;
     }
 
-    this.runningActionId = action.id;
-    this.status = { kind: "info", message: `Starting ${action.title}…` };
+    this.runningTaskId = task.id;
+    this.status = { kind: "info", message: `Starting ${task.title}…` };
     this.render();
 
     try {
-      const handle = await runWorkspaceActionInTerminal(terminal, workspace, action);
+      const handle = await runWorkspaceTaskInTerminal(terminal, workspace, task);
       if (!this.isCurrentWorkspace(workspace)) return;
       this.status = {
         kind: "success",
         message: `Started terminal command “${handle.run.title}”.`,
-        detail: action.command,
+        detail: task.command,
       };
-      this.runningActionId = undefined;
+      this.runningTaskId = undefined;
       this.render();
     } catch (error) {
       if (!this.isCurrentWorkspace(workspace)) return;
-      this.runningActionId = undefined;
+      this.runningTaskId = undefined;
       this.status = { kind: "error", message: error instanceof Error ? error.message : String(error) };
       this.render();
     }
@@ -234,10 +235,10 @@ function getOrLoadWorkspaceConfig(workspace: Workspace): ConfigState {
 
 async function refreshWorkspaceConfig(workspace: Workspace): Promise<ConfigState> {
   const key = cacheKeyForWorkspace(workspace);
-  const state = await loadWorkspaceActionsConfig(workspace).catch((error: unknown): ConfigState => ({
+  const state = await loadWorkspaceTasksConfig(workspace).catch((error: unknown): ConfigState => ({
     kind: "unavailable",
-    message: actionsConfigUnavailableMessage,
-    hint: actionsConfigRefreshHint,
+    message: tasksConfigUnavailableMessage,
+    hint: tasksConfigRefreshHint,
     detail: error instanceof Error ? error.message : String(error),
   }));
   configCache.set(key, state);
@@ -259,64 +260,64 @@ function renderUnavailableState(state: Extract<ConfigState, { kind: "unavailable
   return `<div class="status error"><strong>${escapeHtml(state.message)}</strong><p>${escapeHtml(state.hint)}</p>${detail}</div>`;
 }
 
-function renderActionGroups(actions: WorkspaceAction[], runningActionId: string | undefined): string {
-  return `<div class="actions">${groupActions(actions).map((group) => renderActionGroup(group, runningActionId)).join("")}</div>`;
+function renderTaskGroups(tasks: WorkspaceTask[], runningTaskId: string | undefined): string {
+  return `<div class="tasks">${groupTasks(tasks).map((group) => renderTaskGroup(group, runningTaskId)).join("")}</div>`;
 }
 
-function groupActions(actions: WorkspaceAction[]): { title: string | undefined; actions: WorkspaceAction[] }[] {
-  const groups: { title: string | undefined; actions: WorkspaceAction[] }[] = [];
-  for (const action of actions) {
-    const title = action.group;
+function groupTasks(tasks: WorkspaceTask[]): { title: string | undefined; tasks: WorkspaceTask[] }[] {
+  const groups: { title: string | undefined; tasks: WorkspaceTask[] }[] = [];
+  for (const task of tasks) {
+    const title = task.group;
     let group = groups.find((candidate) => candidate.title === title);
     if (group === undefined) {
-      group = { title, actions: [] };
+      group = { title, tasks: [] };
       groups.push(group);
     }
-    group.actions.push(action);
+    group.tasks.push(task);
   }
   return groups;
 }
 
-function renderActionGroup(group: { title: string | undefined; actions: WorkspaceAction[] }, runningActionId: string | undefined): string {
+function renderTaskGroup(group: { title: string | undefined; tasks: WorkspaceTask[] }, runningTaskId: string | undefined): string {
   const title = group.title === undefined ? "" : `<h3>${escapeHtml(group.title)}</h3>`;
-  return `<section class="action-group">${title}${group.actions.map((action) => renderAction(action, runningActionId)).join("")}</section>`;
+  return `<section class="task-group">${title}${group.tasks.map((task) => renderTask(task, runningTaskId)).join("")}</section>`;
 }
 
-function renderAction(action: WorkspaceAction, runningActionId: string | undefined): string {
-  const running = runningActionId === action.id;
-  const disabled = runningActionId !== undefined;
-  const description = action.description === undefined ? "" : `<span>${escapeHtml(action.description)}</span>`;
+function renderTask(task: WorkspaceTask, runningTaskId: string | undefined): string {
+  const running = runningTaskId === task.id;
+  const disabled = runningTaskId !== undefined;
+  const description = task.description === undefined ? "" : `<span>${escapeHtml(task.description)}</span>`;
   return `
-    <article class="action-card">
-      <div class="action-copy">
-        <strong>${escapeHtml(action.title)}</strong>
+    <article class="task-card">
+      <div class="task-copy">
+        <strong>${escapeHtml(task.title)}</strong>
         ${description}
-        <code>${escapeHtml(action.command)}</code>
+        <code>${escapeHtml(task.command)}</code>
       </div>
-      <button data-action-id="${escapeAttr(action.id)}" ${disabled ? "disabled" : ""}>${running ? "Dispatching…" : "Run"}</button>
+      <button data-task-id="${escapeAttr(task.id)}" ${disabled ? "disabled" : ""}>${running ? "Dispatching…" : "Run"}</button>
     </article>
   `;
 }
 
-function actionFromConfigState(state: ConfigState | undefined, actionId: string | null): WorkspaceAction | undefined {
-  if (state?.kind !== "loaded" || actionId === null) return undefined;
-  return state.config.actions.find((action) => action.id === actionId);
+function taskFromConfigState(state: ConfigState | undefined, taskId: string | null): WorkspaceTask | undefined {
+  if (state?.kind !== "loaded" || taskId === null) return undefined;
+  return state.config.tasks.find((task) => task.id === taskId);
 }
 
-function actionStyles(): string {
+function taskStyles(): string {
   return `
     <style>
       :host { display: contents; }
       .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--pi-border-muted); }
-      .toolbar-actions { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+      .toolbar-tasks { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
       .viewer { box-sizing: border-box; min-height: 0; overflow: auto; padding: 12px; }
-      .actions-viewer { display: grid; align-content: start; gap: 12px; }
-      .actions { display: grid; gap: 14px; }
-      .action-group { display: grid; gap: 10px; }
-      .action-group h3 { margin: 4px 0 0; color: var(--pi-text-secondary); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
-      .action-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 1px solid var(--pi-border); border-radius: 10px; background: var(--pi-surface); padding: 12px; }
-      .action-copy { display: grid; min-width: 0; gap: 5px; }
-      .action-copy span, .muted { color: var(--pi-muted); }
+      .tasks-viewer { display: grid; align-content: start; gap: 12px; }
+      .tasks { display: grid; gap: 14px; }
+      .task-group { display: grid; gap: 10px; }
+      .task-group h3 { margin: 4px 0 0; color: var(--pi-text-secondary); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .task-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 1px solid var(--pi-border); border-radius: 10px; background: var(--pi-surface); padding: 12px; }
+      .task-copy { display: grid; min-width: 0; gap: 5px; }
+      .task-copy span, .muted { color: var(--pi-muted); }
       code, pre { border: 1px solid var(--pi-border-muted); border-radius: 6px; background: var(--pi-bg); color: var(--pi-text-secondary); font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
       code { overflow: auto; padding: 5px 7px; white-space: nowrap; }
       pre { margin: 8px 0 0; overflow: auto; padding: 8px; white-space: pre-wrap; }
@@ -332,8 +333,8 @@ function actionStyles(): string {
       .status.error { border-color: var(--pi-danger); color: var(--pi-danger); }
       .empty { padding: 16px; color: var(--pi-muted); }
       @media (max-width: 760px) {
-        .action-card { grid-template-columns: 1fr; }
-        .action-card button { justify-self: start; }
+        .task-card { grid-template-columns: 1fr; }
+        .task-card button { justify-self: start; }
       }
     </style>
   `;

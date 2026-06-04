@@ -120,6 +120,7 @@ export class AppNavigationPanel extends LitElement {
     :host { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     :host([collapsible]) { flex: 1 1 auto; }
     header { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border-bottom: 1px solid var(--pi-border); }
+    :host([collapsible]) header { display: none; }
     .header-actions { display: flex; align-items: center; gap: 8px; }
     machine-list, project-list, workspace-list { flex: 0 0 auto; max-height: 26%; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--pi-border-muted); }
     session-list { flex: 1 1 auto; min-height: 0; overflow: hidden; }

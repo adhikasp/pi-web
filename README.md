@@ -112,7 +112,7 @@ Remote model-provider credentials and OAuth state stay on the target machine. AP
 
 PI WEB production installs can load trusted local UI plugins without rebuilding PI WEB. Plugins are browser-side ES modules that can add action-palette actions, workspace panels, and workspace-label metadata. They do not run in the session daemon and are not sandboxed.
 
-The supported package shape is intentionally singular: `piWeb.plugins` entries with explicit `id` and `module`, plus a browser module that exports `{ apiVersion: 1, name, activate }`. The bundled `pi-web-plugins/info` TypeScript source is the canonical minimal real example, and `pi-web-plugins/pi-web` demonstrates a dynamic status panel.
+The supported package shape is intentionally singular: `piWeb.plugins` entries with explicit `id` and `module`, plus a browser module that exports `{ apiVersion: 1, name, activate }`. The bundled `pi-web-plugins/info` TypeScript source is the canonical minimal real example, `pi-web-plugins/updates` demonstrates a dynamic status panel, and built-in [Workspace Tasks](docs/plugins.md#workspace-tasks) adds a workspace tab for running configured shell commands in PI WEB terminals.
 
 A useful prompt for AI agents:
 
@@ -123,6 +123,8 @@ Create it under ~/.pi-web/plugins/<plugin-id> using the documented PI WEB v1 plu
 Validate with /pi-web-plugins/manifest.json and explain reload/debug steps.
 Do not modify PI WEB itself.
 ```
+
+Manage discovered plugins in **Settings → Plugins** or with the top-level `plugins` config key. Plugins are enabled by default; set `plugins.<plugin-id>.enabled` to `false` and reload the browser tab to prevent PI WEB from importing that plugin.
 
 Reload the browser tab after adding or editing a plugin. If `PI_WEB_DATA_DIR` is set, use `$PI_WEB_DATA_DIR/plugins` instead of `~/.pi-web/plugins`. Check discovery with:
 

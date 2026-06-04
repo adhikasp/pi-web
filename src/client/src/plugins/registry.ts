@@ -1,4 +1,4 @@
-import { html } from "lit";
+import { html, svg } from "lit";
 import type { AppState } from "../appState";
 import type { Workspace } from "../api";
 import type { PiWebPluginRegistration, PluginAction, PluginRuntimeContext, QualifiedContributionId, QualifiedPluginAction, QualifiedThemeContribution, QualifiedThemePairContribution, QualifiedWorkspaceLabelContribution, QualifiedWorkspacePanelContribution, ThemeContribution, ThemePairContribution, WorkspaceLabelContribution, WorkspaceLabelItem, WorkspacePanelContext, WorkspacePanelContribution } from "./types";
@@ -31,7 +31,7 @@ export class PluginRegistry {
 
     const apiVersion: unknown = plugin.apiVersion;
     if (apiVersion !== 1) throw new Error(`Unsupported plugin API version for ${id}: ${String(apiVersion)}`);
-    const result = plugin.activate({ apiVersion: 1, pluginId: id, html });
+    const result = plugin.activate({ apiVersion: 1, pluginId: id, html, svg });
     const contributions = result.contributions;
     for (const action of contributions.actions ?? []) this.actions.push(this.qualifyAction(id, action));
     for (const panel of contributions.workspacePanels ?? []) this.workspacePanels.push(this.qualifyWorkspacePanel(id, panel));

@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { parseCommandResult, parseFileContentResponse, parseFileSuggestion, parseGitStatusResponse, parseMessagePage, parseSessionStatus, parseSlashCommand, parseTerminalCommandRun, parseTerminalInfo, parseWorkspaceActivityResponse } from "./parsers";
+import { parseCommandResult, parseFileContentResponse, parseFileSuggestion, parseGitStatusResponse, parseMessagePage, parsePiWebConfigResponse, parsePiWebPluginsResponse, parseSessionStatus, parseSlashCommand, parseTerminalCommandRun, parseTerminalInfo, parseWorkspaceActivityResponse } from "./parsers";
 
 describe("API parsers", () => {
+  it("parses PI WEB config responses", () => {
+    expect(parsePiWebConfigResponse({
+      path: "/tmp/config.json",
+      exists: true,
+      config: { host: "0.0.0.0", port: 8504, allowedHosts: ["example.local"], shortcuts: { "core:view.chat": "mod+1", "core:session.stop": null }, plugins: { info: { enabled: false, settings: { compact: true } } } },
+      effectiveConfig: { host: "127.0.0.1", port: 8504, allowedHosts: true },
+      envOverrides: { host: true, port: false, allowedHosts: false },
+    })).toEqual({
+      path: "/tmp/config.json",
+      exists: true,
+      config: { host: "0.0.0.0", port: 8504, allowedHosts: ["example.local"], shortcuts: { "core:view.chat": "mod+1", "core:session.stop": null }, plugins: { info: { enabled: false, settings: { compact: true } } } },
+      effectiveConfig: { host: "127.0.0.1", port: 8504, allowedHosts: true },
+      envOverrides: { host: true, port: false, allowedHosts: false },
+    });
+  });
+
+  it("parses PI WEB plugin status responses", () => {
+    expect(parsePiWebPluginsResponse({
+      plugins: [{ id: "info", module: "/pi-web-plugins/info/pi-web-plugin.js?v=1", source: "bundled", scope: "bundled", enabled: false }],
+    })).toEqual({
+      plugins: [{ id: "info", module: "/pi-web-plugins/info/pi-web-plugin.js?v=1", source: "bundled", scope: "bundled", enabled: false }],
+    });
+  });
+
   it("accepts legacy array message pages and paged message responses", () => {
     expect(parseMessagePage(["a", "b"])).toEqual({ messages: ["a", "b"], start: 0, total: 2 });
     expect(parseMessagePage({ messages: ["c"], start: 3, total: 9 })).toEqual({ messages: ["c"], start: 3, total: 9 });

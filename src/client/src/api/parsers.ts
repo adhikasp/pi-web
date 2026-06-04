@@ -1,4 +1,4 @@
-import type { ArchiveSessionsResponse, AuthProviderOption, AuthProviderStatus, AuthProvidersResponse, AuthStatusSource, AuthType, CommandOption, CommandResult, FileContentResponse, FileSuggestion, FileTreeEntry, FileTreeResponse, GitDiffResponse, GitFileState, GitStatusFile, GitStatusResponse, Machine, MachineHealth, MachineKind, MachineStatus, MessagePage, ModelSelectionResponse, OAuthFlowState, PiWebComponentStatus, PiWebInstallationInfo, PiWebReleaseStatus, PiWebServiceComponent, PiWebStatusMessage, PiWebStatusResponse, PiWebStatusSeverity, Project, QueuedSessionMessage, SessionInfo, SessionModel, SessionStatus, SlashCommand, TerminalCommandRun, TerminalCommandRunStatus, TerminalInfo, ThinkingLevel, ThinkingLevelsResponse, Workspace, WorkspaceActivity, WorkspaceActivityResponse } from "../../../shared/apiTypes";
+import type { ArchiveSessionsResponse, AuthProviderOption, AuthProviderStatus, AuthProvidersResponse, AuthStatusSource, AuthType, CommandOption, CommandResult, FileContentResponse, FileSuggestion, FileTreeEntry, FileTreeResponse, GitDiffResponse, GitFileState, GitStatusFile, GitStatusResponse, Machine, MachineHealth, MachineKind, MachineStatus, MessagePage, ModelSelectionResponse, OAuthFlowState, PiWebComponentStatus, PiWebConfigEnvOverrides, PiWebConfigResponse, PiWebConfigValues, PiWebInstallationInfo, PiWebPluginConfigMap, PiWebPluginInfo, PiWebPluginsResponse, PiWebPluginScope, PiWebReleaseStatus, PiWebServiceComponent, PiWebShortcutConfig, PiWebStatusMessage, PiWebStatusResponse, PiWebStatusSeverity, Project, QueuedSessionMessage, SessionInfo, SessionModel, SessionStatus, SlashCommand, TerminalCommandRun, TerminalCommandRunStatus, TerminalInfo, ThinkingLevel, ThinkingLevelsResponse, Workspace, WorkspaceActivity, WorkspaceActivityResponse } from "../../../shared/apiTypes";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -406,6 +406,83 @@ export function parseWorkspaceActivity(value: unknown): WorkspaceActivity {
 export function parseWorkspaceActivityResponse(value: unknown): WorkspaceActivityResponse {
   const record = requireRecord(value);
   return { workspaces: arrayOf(parseWorkspaceActivity)(record["workspaces"]), generatedAt: requireString(record, "generatedAt") };
+}
+
+export function parsePiWebConfigResponse(value: unknown): PiWebConfigResponse {
+  const record = requireRecord(value);
+  return {
+    path: requireString(record, "path"),
+    exists: requireBoolean(record, "exists"),
+    config: parsePiWebConfigValues(record["config"]),
+    effectiveConfig: parsePiWebConfigValues(record["effectiveConfig"]),
+    envOverrides: parsePiWebConfigEnvOverrides(record["envOverrides"]),
+  };
+}
+
+function parsePiWebConfigValues(value: unknown): PiWebConfigValues {
+  const record = requireRecord(value);
+  return {
+    ...optionalField("host", optionalString(record, "host")),
+    ...optionalField("port", optionalNumber(record, "port")),
+    ...optionalField("allowedHosts", optionalAllowedHosts(record["allowedHosts"])),
+    ...optionalField("shortcuts", optionalShortcuts(record["shortcuts"])),
+    ...optionalField("plugins", optionalPlugins(record["plugins"])),
+  };
+}
+
+function optionalAllowedHosts(value: unknown): PiWebConfigValues["allowedHosts"] | undefined {
+  if (value === undefined) return undefined;
+  if (value === true) return true;
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) return value;
+  throw new Error("Invalid PI WEB allowedHosts field");
+}
+
+function optionalShortcuts(value: unknown): PiWebShortcutConfig | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value) || Array.isArray(value)) throw new Error("Invalid PI WEB shortcuts field");
+  return Object.fromEntries(Object.entries(value).map(([actionId, shortcut]) => {
+    if (shortcut !== null && (typeof shortcut !== "string" || shortcut === "")) throw new Error("Invalid PI WEB shortcut field");
+    return [actionId, shortcut];
+  }));
+}
+
+function optionalPlugins(value: unknown): PiWebPluginConfigMap | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value) || Array.isArray(value)) throw new Error("Invalid PI WEB plugins field");
+  return Object.fromEntries(Object.entries(value).map(([pluginId, config]) => {
+    if (!isRecord(config) || Array.isArray(config)) throw new Error("Invalid PI WEB plugin config field");
+    const enabled = config["enabled"];
+    if (enabled !== undefined && typeof enabled !== "boolean") throw new Error("Invalid PI WEB plugin enabled field");
+    const settings = config["settings"];
+    if (settings !== undefined && (!isRecord(settings) || Array.isArray(settings))) throw new Error("Invalid PI WEB plugin settings field");
+    return [pluginId, config];
+  }));
+}
+
+function parsePiWebConfigEnvOverrides(value: unknown): PiWebConfigEnvOverrides {
+  const record = requireRecord(value);
+  return { host: requireBoolean(record, "host"), port: requireBoolean(record, "port"), allowedHosts: requireBoolean(record, "allowedHosts") };
+}
+
+export function parsePiWebPluginsResponse(value: unknown): PiWebPluginsResponse {
+  const record = requireRecord(value);
+  return { plugins: arrayOf(parsePiWebPluginInfo)(record["plugins"]) };
+}
+
+function parsePiWebPluginInfo(value: unknown): PiWebPluginInfo {
+  const record = requireRecord(value);
+  return {
+    id: requireString(record, "id"),
+    module: requireString(record, "module"),
+    source: requireString(record, "source"),
+    scope: parsePiWebPluginScope(record["scope"]),
+    enabled: requireBoolean(record, "enabled"),
+  };
+}
+
+function parsePiWebPluginScope(value: unknown): PiWebPluginScope {
+  if (value !== "bundled" && value !== "local" && value !== "user" && value !== "project") throw new Error("Invalid PI WEB plugin scope");
+  return value;
 }
 
 export function parsePiWebStatusResponse(value: unknown): PiWebStatusResponse {

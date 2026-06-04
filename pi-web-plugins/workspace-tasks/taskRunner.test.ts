@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@jmfederico/pi-web/plugin-api";
-import { runWorkspaceActionInTerminal } from "./actionRunner";
-import type { WorkspaceAction } from "./config";
+import { runWorkspaceTaskInTerminal } from "./taskRunner";
+import type { WorkspaceTask } from "./config";
 import type { InternalTerminalCommandRun, InternalTerminalCommandRunsRuntime } from "./piWebInternal";
 
 const workspace: Workspace = {
@@ -16,7 +16,7 @@ const workspace: Workspace = {
 
 const run: InternalTerminalCommandRun = {
   id: "run1",
-  origin: "actions",
+  origin: "workspace-tasks",
   projectId: workspace.projectId,
   workspaceId: workspace.id,
   terminalId: "term1",
@@ -24,19 +24,19 @@ const run: InternalTerminalCommandRun = {
   command: "npm run build",
   status: "running",
   createdAt: "2026-05-25T00:00:00.000Z",
-  metadata: { "pi.plugin": "actions", "action.id": "build" },
+  metadata: { "pi.plugin": "workspace-tasks", "task.id": "build" },
 };
 
-describe("action runner", () => {
-  it("starts workspace actions through the internal terminal command-run helper", async () => {
-    const action: WorkspaceAction = { id: "build", title: "Build", command: "npm run build", confirm: false };
+describe("task runner", () => {
+  it("starts workspace tasks through the internal terminal command-run helper", async () => {
+    const task: WorkspaceTask = { id: "build", title: "Build", command: "npm run build", confirm: false };
     const runCommand = vi.fn<InternalTerminalCommandRunsRuntime["runCommand"]>(() => Promise.resolve({ run, completed: Promise.resolve(run) }));
     const terminal: InternalTerminalCommandRunsRuntime = {
       runCommand,
       open: vi.fn(),
     };
 
-    const handle = await runWorkspaceActionInTerminal(terminal, workspace, action);
+    const handle = await runWorkspaceTaskInTerminal(terminal, workspace, task);
 
     expect(handle.run).toEqual(run);
     await expect(handle.completed).resolves.toEqual(run);
@@ -45,7 +45,7 @@ describe("action runner", () => {
       title: "Build",
       command: "npm run build",
       open: true,
-      metadata: { "pi.plugin": "actions", "action.id": "build" },
+      metadata: { "pi.plugin": "workspace-tasks", "task.id": "build" },
     });
   });
 });

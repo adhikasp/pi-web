@@ -1,4 +1,4 @@
-import type { FileSuggestion, RunTerminalCommandInput, TerminalCommandRun, TerminalCommandRunFilter } from "../../../shared/apiTypes";
+import type { FileSuggestion, PiWebConfigValues, RunTerminalCommandInput, TerminalCommandRun, TerminalCommandRunFilter } from "../../../shared/apiTypes";
 import { request } from "./http";
 import {
   arrayOf,
@@ -20,6 +20,8 @@ import {
   parseMessagePage,
   parseModelSelectionResponse,
   parseOAuthFlowState,
+  parsePiWebConfigResponse,
+  parsePiWebPluginsResponse,
   parsePiWebStatusResponse,
   parseProject,
   parseRestored,
@@ -46,6 +48,15 @@ export const machinesApi = {
   addMachine: (input: { name: string; baseUrl: string; token?: string }) => request("/api/machines", parseMachine, { method: "POST", body: JSON.stringify(input) }),
   deleteMachine: (machineId: string) => request(`/api/machines/${encodeURIComponent(machineId)}`, (value) => value, { method: "DELETE" }),
   health: (machineId: string) => request(`/api/machines/${encodeURIComponent(machineId)}/health`, parseMachineHealth),
+};
+
+export const configApi = {
+  config: () => request("/api/config", parsePiWebConfigResponse),
+  saveConfig: (config: PiWebConfigValues) => request("/api/config", parsePiWebConfigResponse, { method: "PUT", body: JSON.stringify({ config }) }),
+};
+
+export const pluginsApi = {
+  plugins: () => request("/api/plugins", parsePiWebPluginsResponse),
 };
 
 export const activityApi = {
@@ -170,6 +181,8 @@ export const gitApi = {
 export const api = {
   ...piWebApi,
   ...machinesApi,
+  ...configApi,
+  ...pluginsApi,
   ...activityApi,
   ...projectsApi,
   ...workspacesApi,

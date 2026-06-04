@@ -1,14 +1,14 @@
-export const ACTIONS_CONFIG_PATH = ".pi-web/actions.json";
-export const ACTIONS_CONFIG_VERSION = 1;
+export const TASKS_CONFIG_PATH = ".pi-web/tasks.json";
+export const TASKS_CONFIG_VERSION = 1;
 
-const actionIdPattern = /^[a-z][a-z0-9.-]*$/u;
+const taskIdPattern = /^[a-z][a-z0-9.-]*$/u;
 
-export interface WorkspaceActionsConfig {
-  version: typeof ACTIONS_CONFIG_VERSION;
-  actions: WorkspaceAction[];
+export interface WorkspaceTasksConfig {
+  version: typeof TASKS_CONFIG_VERSION;
+  tasks: WorkspaceTask[];
 }
 
-export interface WorkspaceAction {
+export interface WorkspaceTask {
   id: string;
   title: string;
   command: string;
@@ -17,51 +17,51 @@ export interface WorkspaceAction {
   confirm: boolean;
 }
 
-export type ParseActionsConfigResult =
-  | { ok: true; config: WorkspaceActionsConfig }
+export type ParseTasksConfigResult =
+  | { ok: true; config: WorkspaceTasksConfig }
   | { ok: false; error: string };
 
-export function parseActionsConfigText(text: string): ParseActionsConfigResult {
+export function parseTasksConfigText(text: string): ParseTasksConfigResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch (error) {
     return { ok: false, error: `Invalid JSON: ${error instanceof Error ? error.message : String(error)}` };
   }
-  return parseActionsConfig(parsed);
+  return parseTasksConfig(parsed);
 }
 
-export function parseActionsConfig(value: unknown): ParseActionsConfigResult {
+export function parseTasksConfig(value: unknown): ParseTasksConfigResult {
   if (!isRecord(value)) return invalid("Config must be an object");
-  if (value["version"] !== ACTIONS_CONFIG_VERSION) return invalid("Config version must be 1");
+  if (value["version"] !== TASKS_CONFIG_VERSION) return invalid("Config version must be 1");
 
-  const actions = value["actions"];
-  if (!Array.isArray(actions)) return invalid("Config actions must be an array");
+  const tasks = value["tasks"];
+  if (!Array.isArray(tasks)) return invalid("Config tasks must be an array");
 
   const ids = new Set<string>();
-  const parsedActions: WorkspaceAction[] = [];
-  for (const [index, action] of actions.entries()) {
-    const parsedAction = parseAction(action, index);
-    if (!parsedAction.ok) return parsedAction;
-    if (ids.has(parsedAction.action.id)) return invalid(`Duplicate action id: ${parsedAction.action.id}`);
-    ids.add(parsedAction.action.id);
-    parsedActions.push(parsedAction.action);
+  const parsedTasks: WorkspaceTask[] = [];
+  for (const [index, task] of tasks.entries()) {
+    const parsedTask = parseTask(task, index);
+    if (!parsedTask.ok) return parsedTask;
+    if (ids.has(parsedTask.task.id)) return invalid(`Duplicate task id: ${parsedTask.task.id}`);
+    ids.add(parsedTask.task.id);
+    parsedTasks.push(parsedTask.task);
   }
 
-  return { ok: true, config: { version: ACTIONS_CONFIG_VERSION, actions: parsedActions } };
+  return { ok: true, config: { version: TASKS_CONFIG_VERSION, tasks: parsedTasks } };
 }
 
-type ParseActionResult =
-  | { ok: true; action: WorkspaceAction }
+type ParseTaskResult =
+  | { ok: true; task: WorkspaceTask }
   | { ok: false; error: string };
 
-function parseAction(value: unknown, index: number): ParseActionResult {
-  const label = `Action ${String(index + 1)}`;
+function parseTask(value: unknown, index: number): ParseTaskResult {
+  const label = `Task ${String(index + 1)}`;
   if (!isRecord(value)) return invalid(`${label} must be an object`);
 
   const id = requireNonEmptyString(value, "id", label);
   if (!id.ok) return id;
-  if (!actionIdPattern.test(id.value)) return invalid(`${label} id must match ${actionIdPattern.source}`);
+  if (!taskIdPattern.test(id.value)) return invalid(`${label} id must match ${taskIdPattern.source}`);
 
   const title = requireNonEmptyString(value, "title", label);
   if (!title.ok) return title;
@@ -80,7 +80,7 @@ function parseAction(value: unknown, index: number): ParseActionResult {
 
   return {
     ok: true,
-    action: {
+    task: {
       id: id.value,
       title: title.value,
       command: command.value,

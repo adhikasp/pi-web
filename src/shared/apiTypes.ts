@@ -22,6 +22,52 @@ export interface MachineHealth {
   error?: string;
 }
 
+export type PiWebShortcutConfig = Record<string, string | null>;
+export type PiWebPluginSettings = Record<string, unknown>;
+export type PiWebPluginConfigMap = Record<string, PiWebPluginConfig>;
+
+export interface PiWebPluginConfig {
+  enabled?: boolean;
+  settings?: PiWebPluginSettings;
+  [key: string]: unknown;
+}
+
+export interface PiWebConfigValues {
+  host?: string;
+  port?: number;
+  allowedHosts?: string[] | true;
+  shortcuts?: PiWebShortcutConfig;
+  plugins?: PiWebPluginConfigMap;
+}
+
+export type PiWebPluginScope = "bundled" | "local" | "user" | "project";
+
+export interface PiWebPluginInfo {
+  id: string;
+  module: string;
+  source: string;
+  scope: PiWebPluginScope;
+  enabled: boolean;
+}
+
+export interface PiWebPluginsResponse {
+  plugins: PiWebPluginInfo[];
+}
+
+export interface PiWebConfigEnvOverrides {
+  host: boolean;
+  port: boolean;
+  allowedHosts: boolean;
+}
+
+export interface PiWebConfigResponse {
+  path: string;
+  exists: boolean;
+  config: PiWebConfigValues;
+  effectiveConfig: PiWebConfigValues;
+  envOverrides: PiWebConfigEnvOverrides;
+}
+
 export interface Project {
   id: string;
   name: string;

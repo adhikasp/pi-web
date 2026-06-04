@@ -80,6 +80,14 @@ export function createCoreActions(): PluginAction[] {
       run: (context) => { context.openThemePicker(); },
     },
     {
+      id: "settings.open",
+      title: "Open Settings",
+      description: "Manage PI WEB configuration and keyboard shortcuts",
+      shortcut: "mod+,",
+      group: "Preferences",
+      run: (context) => { context.piWebInternal?.openSettings?.(); },
+    },
+    {
       id: "app.refresh-data",
       title: "Refresh App Data",
       description: "Refresh session, status, activity, and the current workspace surface without reloading the page",

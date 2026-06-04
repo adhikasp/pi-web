@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { actionMenuPanelStyle } from "../actionMenu";
 
 const REFRESH_LONG_PRESS_MS = 550;
+const REFRESH_MENU_PORTAL_STYLE_ID = "pi-web-app-refresh-menu-portal-style";
 
 @customElement("app-refresh-control")
 export class AppRefreshControl extends LitElement {
@@ -10,7 +11,8 @@ export class AppRefreshControl extends LitElement {
   @property({ attribute: false }) onRefresh?: () => void | Promise<void>;
   @property({ attribute: false }) onReload?: () => void;
   @state() private menuOpen = false;
-  @state() private menuStyle = "";
+  private menuStyle = "";
+  private menuPortal: HTMLDivElement | undefined;
   private longPressTimer: number | undefined;
   private suppressNextClick = false;
 
@@ -24,6 +26,7 @@ export class AppRefreshControl extends LitElement {
     document.removeEventListener("click", this.onDocumentClick);
     document.removeEventListener("keydown", this.onDocumentKeyDown);
     this.clearLongPressTimer();
+    this.removePortalMenu();
     super.disconnectedCallback();
   }
 
@@ -44,17 +47,6 @@ export class AppRefreshControl extends LitElement {
         @pointercancel=${() => { this.clearLongPressTimer(); }}
         @pointerleave=${() => { this.clearLongPressTimer(); }}
       >${this.renderRefreshIcon()}</button>
-      ${this.renderMenu()}
-    `;
-  }
-
-  private renderMenu() {
-    if (!this.menuOpen) return null;
-    return html`
-      <div class="app-refresh-menu" role="menu" style=${this.menuStyle} @click=${(event: MouseEvent) => { event.stopPropagation(); }}>
-        <button role="menuitem" @click=${() => { this.refresh(); }}>Refresh app data</button>
-        <button role="menuitem" @click=${() => { this.reload(); }}>Full page reload</button>
-      </div>
     `;
   }
 
@@ -100,7 +92,8 @@ export class AppRefreshControl extends LitElement {
   };
 
   private readonly onDocumentClick = (event: MouseEvent): void => {
-    if (event.composedPath().includes(this)) return;
+    const path = event.composedPath();
+    if (path.includes(this) || (this.menuPortal !== undefined && path.includes(this.menuPortal))) return;
     this.closeMenu();
   };
 
@@ -114,11 +107,13 @@ export class AppRefreshControl extends LitElement {
   private openMenu(target: EventTarget | null): void {
     this.menuStyle = actionMenuPanelStyle(target, { constrainTo: "viewport" });
     this.menuOpen = true;
+    this.renderPortalMenu();
   }
 
   private closeMenu(): void {
     this.menuOpen = false;
     this.suppressNextClick = false;
+    this.removePortalMenu();
   }
 
   private refresh(): void {
@@ -137,15 +132,96 @@ export class AppRefreshControl extends LitElement {
     this.longPressTimer = undefined;
   }
 
+  private renderPortalMenu(): void {
+    const ownerDocument = this.ownerDocument;
+    ensurePortalMenuStyles(ownerDocument);
+
+    const menu = this.menuPortal ?? ownerDocument.createElement("div");
+    this.menuPortal = menu;
+    menu.className = "pi-web-app-refresh-menu-portal";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("style", this.menuStyle);
+    menu.replaceChildren(
+      this.createPortalMenuButton("Refresh app data", () => { this.refresh(); }),
+      this.createPortalMenuButton("Full page reload", () => { this.reload(); }),
+    );
+    menu.addEventListener("click", this.onPortalMenuClick);
+    if (!menu.isConnected) ownerDocument.body.append(menu);
+  }
+
+  private createPortalMenuButton(label: string, onClick: () => void): HTMLButtonElement {
+    const button = this.ownerDocument.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "menuitem");
+    button.textContent = label;
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onClick();
+    });
+    return button;
+  }
+
+  private removePortalMenu(): void {
+    this.menuPortal?.removeEventListener("click", this.onPortalMenuClick);
+    this.menuPortal?.remove();
+    this.menuPortal = undefined;
+  }
+
+  private readonly onPortalMenuClick = (event: MouseEvent): void => {
+    event.stopPropagation();
+  };
+
   static override styles = css`
     :host { position: relative; z-index: 1; display: flex; align-items: center; pointer-events: auto; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
     :host, :host * { -webkit-user-select: none; user-select: none; }
     .app-refresh-button { box-sizing: border-box; width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--pi-border); border-radius: 999px; background: var(--pi-surface); color: var(--pi-text); padding: 0; line-height: 1; cursor: pointer; touch-action: manipulation; -webkit-touch-callout: none; }
     .app-refresh-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
     .app-refresh-button.refreshing .app-refresh-icon { animation: app-refresh-spin .8s linear infinite; }
-    .app-refresh-menu { position: fixed; z-index: 10000; box-sizing: border-box; min-width: min(170px, calc(100vw - 16px)); overflow: auto; padding: 4px; border: 1px solid var(--pi-border); border-radius: 8px; background: var(--pi-surface); box-shadow: 0 8px 24px var(--pi-shadow); overflow-wrap: anywhere; }
-    .app-refresh-menu button { display: block; width: 100%; border: 0; border-radius: 8px; background: transparent; color: var(--pi-text); padding: 7px 9px; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; }
-    .app-refresh-menu button:hover, .app-refresh-menu button:focus { background: var(--pi-selection-bg); }
     @keyframes app-refresh-spin { to { transform: rotate(360deg); } }
   `;
+}
+
+function ensurePortalMenuStyles(ownerDocument: Document): void {
+  if (ownerDocument.getElementById(REFRESH_MENU_PORTAL_STYLE_ID) !== null) return;
+  const style = ownerDocument.createElement("style");
+  style.id = REFRESH_MENU_PORTAL_STYLE_ID;
+  style.textContent = `
+    .pi-web-app-refresh-menu-portal {
+      position: fixed;
+      z-index: 2147483647;
+      box-sizing: border-box;
+      min-width: min(170px, calc(100vw - 16px));
+      overflow: auto;
+      padding: 4px;
+      border: 1px solid var(--pi-border);
+      border-radius: 8px;
+      background: var(--pi-surface);
+      color: var(--pi-text);
+      box-shadow: 0 8px 24px var(--pi-shadow);
+      overflow-wrap: anywhere;
+      font: 14px system-ui, sans-serif;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .pi-web-app-refresh-menu-portal button {
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--pi-text);
+      padding: 7px 9px;
+      text-align: left;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      font: inherit;
+      cursor: pointer;
+    }
+    .pi-web-app-refresh-menu-portal button:hover,
+    .pi-web-app-refresh-menu-portal button:focus {
+      background: var(--pi-selection-bg);
+    }
+  `;
+  ownerDocument.head.append(style);
 }

@@ -50,6 +50,7 @@ beforeEach(async () => {
     sessionDaemon: fakeSessionDaemon(),
     piWebPlugins: {
       manifest: () => Promise.resolve({ plugins: [{ id: "fake", module: "/pi-web-plugins/fake/plugin.js?v=1", source: "test", scope: "local" }] }),
+      plugins: () => Promise.resolve({ plugins: [{ id: "fake", module: "/pi-web-plugins/fake/plugin.js?v=1", source: "test", scope: "local", enabled: true }] }),
       readAsset: (pluginId, assetPath) => Promise.resolve(pluginId === "fake" && assetPath === "plugin.js" ? { content: Buffer.from("export default {};"), contentType: "application/javascript; charset=utf-8" } : undefined),
     },
     clientDist: false,
@@ -287,6 +288,10 @@ describe("buildApp", () => {
     const manifestResponse = await app.inject({ method: "GET", url: "/pi-web-plugins/manifest.json" });
     expect(manifestResponse.statusCode).toBe(200);
     expect(manifestResponse.json()).toEqual({ plugins: [{ id: "fake", module: "/pi-web-plugins/fake/plugin.js?v=1", source: "test", scope: "local" }] });
+
+    const pluginsResponse = await app.inject({ method: "GET", url: "/api/plugins" });
+    expect(pluginsResponse.statusCode).toBe(200);
+    expect(pluginsResponse.json()).toEqual({ plugins: [{ id: "fake", module: "/pi-web-plugins/fake/plugin.js?v=1", source: "test", scope: "local", enabled: true }] });
 
     const assetResponse = await app.inject({ method: "GET", url: "/pi-web-plugins/fake/plugin.js?v=1" });
     expect(assetResponse.statusCode).toBe(200);

@@ -36,7 +36,6 @@
     "vitest.config.ts",
     "extensions/**/*.ts",
     "pi-web-plugins/**/*.ts",
-    "plugins/**/*.ts",
     "plugin-api.d.ts"
   ]
 }

@@ -3,15 +3,22 @@ import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DefaultPackageManager, getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
-import { piWebDataDir } from "../config.js";
+import { loadPiWebConfig, piWebDataDir, type PiWebConfig } from "../config.js";
+import type { PiWebPluginInfo, PiWebPluginsResponse, PiWebPluginScope } from "../shared/apiTypes.js";
+import { isPiWebPluginId } from "../shared/pluginIds.js";
 
-const pluginIdPattern = /^[a-z][a-z0-9.-]*$/u;
+export type { PiWebPluginInfo, PiWebPluginsResponse, PiWebPluginScope } from "../shared/apiTypes.js";
 
 export interface PiWebPluginManifest {
-  plugins: { id: string; module: string; source: string; scope: PiWebPluginScope }[];
+  plugins: PiWebPluginManifestEntry[];
 }
 
-export type PiWebPluginScope = "bundled" | "local" | "user" | "project";
+export interface PiWebPluginManifestEntry {
+  id: string;
+  module: string;
+  source: string;
+  scope: PiWebPluginScope;
+}
 
 export interface ConfiguredPiPackage {
   source: string;
@@ -38,6 +45,7 @@ interface PiWebPluginServiceOptions {
   cwd?: string;
   agentDir?: string;
   packageProvider?: PiPackageProvider | false;
+  configProvider?: () => PiWebConfig;
 }
 
 interface LocalPluginRoot {
@@ -80,28 +88,31 @@ export class DefaultPiPackageProvider implements PiPackageProvider {
 export class PiWebPluginService {
   private readonly roots: LocalPluginRoot[];
   private readonly packageProvider: PiPackageProvider | undefined;
+  private readonly configProvider: () => PiWebConfig;
 
   constructor(options: PiWebPluginServiceOptions = {}) {
     const cwd = options.cwd ?? process.cwd();
     const agentDir = options.agentDir ?? getAgentDir();
     this.roots = options.roots ?? defaultPluginRoots(cwd);
     this.packageProvider = options.packageProvider === false ? undefined : options.packageProvider ?? new DefaultPiPackageProvider(cwd, agentDir);
+    this.configProvider = options.configProvider ?? (() => loadPiWebConfig({ cwd }).config);
   }
 
   async manifest(): Promise<PiWebPluginManifest> {
-    const plugins = await this.discoverPlugins();
     return {
-      plugins: plugins.map((plugin) => ({
-        id: plugin.id,
-        module: `/pi-web-plugins/${encodeURIComponent(plugin.id)}/${plugin.entryFile}?v=${encodeURIComponent(plugin.version)}`,
-        source: plugin.source,
-        scope: plugin.scope,
-      })),
+      plugins: (await this.plugins()).plugins
+        .filter((plugin) => plugin.enabled)
+        .map((plugin) => ({ id: plugin.id, module: plugin.module, source: plugin.source, scope: plugin.scope })),
     };
   }
 
+  async plugins(): Promise<PiWebPluginsResponse> {
+    const [plugins, config] = await Promise.all([this.discoverPlugins(), Promise.resolve(this.configProvider())]);
+    return { plugins: plugins.map((plugin) => this.pluginInfo(plugin, config)) };
+  }
+
   async readAsset(pluginId: string, assetPath: string): Promise<{ content: Buffer; contentType: string } | undefined> {
-    if (!pluginIdPattern.test(pluginId)) return undefined;
+    if (!isPiWebPluginId(pluginId)) return undefined;
     const plugin = (await this.discoverPlugins()).find((candidate) => candidate.id === pluginId);
     if (plugin === undefined) return undefined;
 
@@ -116,6 +127,16 @@ export class PiWebPluginService {
     if (assetStat?.isFile() !== true) return undefined;
 
     return { content: await readFile(realAsset), contentType: contentTypeFor(realAsset) };
+  }
+
+  private pluginInfo(plugin: PluginRecord, config: PiWebConfig): PiWebPluginInfo {
+    return {
+      id: plugin.id,
+      module: `/pi-web-plugins/${encodeURIComponent(plugin.id)}/${plugin.entryFile}?v=${encodeURIComponent(plugin.version)}`,
+      source: plugin.source,
+      scope: plugin.scope,
+      enabled: config.plugins?.[plugin.id]?.enabled !== false,
+    };
   }
 
   private async discoverPlugins(): Promise<PluginRecord[]> {
@@ -173,7 +194,7 @@ async function discoverLocalRoot(root: LocalPluginRoot): Promise<PluginRecord[]>
   const entries = await readdir(root.path, { withFileTypes: true }).catch(() => []);
   const plugins: PluginRecord[] = [];
   for (const entry of entries) {
-    if (!pluginIdPattern.test(entry.name)) continue;
+    if (!isPiWebPluginId(entry.name)) continue;
     const pluginRoot = join(root.path, entry.name);
     const pluginStat = entry.isDirectory() ? undefined : entry.isSymbolicLink() ? await stat(pluginRoot).catch(() => undefined) : undefined;
     if (!entry.isDirectory() && pluginStat?.isDirectory() !== true) continue;
@@ -236,7 +257,7 @@ function parsePluginEntries(piWeb: Record<string, unknown>, packagePath: string)
     if (!isRecord(entry)) throw new Error(`PI WEB plugin entry ${String(index + 1)} must be an object in ${packagePath}`);
     const id = entry["id"];
     const module = entry["module"];
-    if (typeof id !== "string" || !pluginIdPattern.test(id)) throw new Error(`Invalid PI WEB plugin id in ${packagePath}: ${String(id)}`);
+    if (typeof id !== "string" || !isPiWebPluginId(id)) throw new Error(`Invalid PI WEB plugin id in ${packagePath}: ${String(id)}`);
     if (typeof module !== "string" || module === "") throw new Error(`Invalid PI WEB plugin module for ${id} in ${packagePath}`);
     return { id, module };
   });

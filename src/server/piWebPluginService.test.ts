@@ -88,6 +88,31 @@ describe("PiWebPluginService", () => {
     await expect(service.readAsset("dev", "pi-web-plugin.js")).resolves.toBeDefined();
   });
 
+  it("filters disabled plugins from the manifest while reporting them through plugin status", async () => {
+    await writePlugin(join(tempDir, "plugins", "enabled"), {
+      packageJson: { piWeb: { plugins: [{ id: "enabled", module: "pi-web-plugin.js" }] } },
+      files: { "pi-web-plugin.js": "export default {};" },
+    });
+    await writePlugin(join(tempDir, "plugins", "disabled"), {
+      packageJson: { piWeb: { plugins: [{ id: "disabled", module: "pi-web-plugin.js" }] } },
+      files: { "pi-web-plugin.js": "export default {};" },
+    });
+
+    const service = new PiWebPluginService({
+      roots: [{ path: join(tempDir, "plugins"), source: "test", scope: "local" }],
+      packageProvider: false,
+      configProvider: () => ({ plugins: { disabled: { enabled: false, settings: { hidden: true } } } }),
+    });
+
+    await expect(service.manifest()).resolves.toMatchObject({ plugins: [{ id: "enabled" }] });
+    await expect(service.plugins()).resolves.toMatchObject({
+      plugins: [
+        { id: "disabled", enabled: false },
+        { id: "enabled", enabled: true },
+      ],
+    });
+  });
+
   it("skips duplicate plugin ids", async () => {
     await writePlugin(join(tempDir, "plugins", "one"), {
       packageJson: { piWeb: { plugins: [{ id: "duplicate", module: "pi-web-plugin.js" }] } },

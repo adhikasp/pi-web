@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { parseActionsConfigText } from "./config";
+import { parseTasksConfigText } from "./config";
 
-describe("workspace actions config", () => {
+describe("workspace tasks config", () => {
   it("parses a minimal version 1 config", () => {
-    expect(parseActionsConfigText(JSON.stringify({
+    expect(parseTasksConfigText(JSON.stringify({
       version: 1,
-      actions: [
+      tasks: [
         { id: "db.reset", title: "Reset DB", command: "go -C klingit-go run ./cli db reset" },
       ],
     }))).toEqual({
       ok: true,
       config: {
         version: 1,
-        actions: [
+        tasks: [
           { id: "db.reset", title: "Reset DB", command: "go -C klingit-go run ./cli db reset", confirm: false },
         ],
       },
@@ -20,9 +20,9 @@ describe("workspace actions config", () => {
   });
 
   it("parses optional group, description, and confirm fields", () => {
-    expect(parseActionsConfigText(JSON.stringify({
+    expect(parseTasksConfigText(JSON.stringify({
       version: 1,
-      actions: [
+      tasks: [
         {
           id: "docker.start",
           title: "Start Docker",
@@ -36,7 +36,7 @@ describe("workspace actions config", () => {
       ok: true,
       config: {
         version: 1,
-        actions: [
+        tasks: [
           {
             id: "docker.start",
             title: "Start Docker",
@@ -50,50 +50,50 @@ describe("workspace actions config", () => {
     });
   });
 
-  it("accepts an empty actions array", () => {
-    expect(parseActionsConfigText(JSON.stringify({ version: 1, actions: [] }))).toEqual({
+  it("accepts an empty tasks array", () => {
+    expect(parseTasksConfigText(JSON.stringify({ version: 1, tasks: [] }))).toEqual({
       ok: true,
-      config: { version: 1, actions: [] },
+      config: { version: 1, tasks: [] },
     });
   });
 
   it("rejects invalid JSON and unsupported versions", () => {
-    expect(parseActionsConfigText("{")).toMatchObject({ ok: false });
-    expect(parseActionsConfigText(JSON.stringify({ version: 2, actions: [] }))).toEqual({
+    expect(parseTasksConfigText("{")).toMatchObject({ ok: false });
+    expect(parseTasksConfigText(JSON.stringify({ version: 2, tasks: [] }))).toEqual({
       ok: false,
       error: "Config version must be 1",
     });
   });
 
   it("rejects missing, empty, or duplicate required fields", () => {
-    expect(parseActionsConfigText(JSON.stringify({ version: 1 }))).toEqual({
+    expect(parseTasksConfigText(JSON.stringify({ version: 1 }))).toEqual({
       ok: false,
-      error: "Config actions must be an array",
+      error: "Config tasks must be an array",
     });
-    expect(parseActionsConfigText(JSON.stringify({ version: 1, actions: [{ id: "", title: "T", command: "cmd" }] }))).toEqual({
+    expect(parseTasksConfigText(JSON.stringify({ version: 1, tasks: [{ id: "", title: "T", command: "cmd" }] }))).toEqual({
       ok: false,
-      error: "Action 1 id must be a non-empty string",
+      error: "Task 1 id must be a non-empty string",
     });
-    expect(parseActionsConfigText(JSON.stringify({
+    expect(parseTasksConfigText(JSON.stringify({
       version: 1,
-      actions: [
+      tasks: [
         { id: "one", title: "One", command: "cmd" },
         { id: "one", title: "Again", command: "cmd" },
       ],
     }))).toEqual({
       ok: false,
-      error: "Duplicate action id: one",
+      error: "Duplicate task id: one",
     });
   });
 
   it("rejects invalid optional field types", () => {
-    expect(parseActionsConfigText(JSON.stringify({ version: 1, actions: [{ id: "one", title: "One", command: "cmd", confirm: "yes" }] }))).toEqual({
+    expect(parseTasksConfigText(JSON.stringify({ version: 1, tasks: [{ id: "one", title: "One", command: "cmd", confirm: "yes" }] }))).toEqual({
       ok: false,
-      error: "Action 1 confirm must be a boolean",
+      error: "Task 1 confirm must be a boolean",
     });
-    expect(parseActionsConfigText(JSON.stringify({ version: 1, actions: [{ id: "one", title: "One", command: "cmd", group: "" }] }))).toEqual({
+    expect(parseTasksConfigText(JSON.stringify({ version: 1, tasks: [{ id: "one", title: "One", command: "cmd", group: "" }] }))).toEqual({
       ok: false,
-      error: "Action 1 group must be a non-empty string when provided",
+      error: "Task 1 group must be a non-empty string when provided",
     });
   });
 });

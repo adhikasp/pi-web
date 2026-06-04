@@ -2,4 +2,4 @@
 "@jmfederico/pi-web": patch
 ---
 
-Fix the PWA refresh control menu so its reload options are visible when opened from the compact header button.
+Keep the PWA refresh control menu visible above mobile tab navigation and workspace tab content.

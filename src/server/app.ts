@@ -14,6 +14,7 @@ import { registerSessionProxyRoutes, type SessionProxyDaemon } from "./sessiond/
 import { registerWorkspaceExplorerRoutes } from "./workspaceExplorerRoutes.js";
 import { registerGitRoutes } from "./gitRoutes.js";
 import { registerTerminalProxyRoutes } from "./terminalProxyRoutes.js";
+import { registerConfigRoutes, type PiWebConfigService } from "./configRoutes.js";
 import { PiWebPluginService } from "./piWebPluginService.js";
 import { getPiWebStatus, getPiWebVersionStatus } from "./piWebStatus.js";
 import { MachineService } from "./machines/machineService.js";
@@ -25,7 +26,8 @@ export interface AppDependencies {
   workspaces?: WorkspaceService;
   machines?: MachineService;
   sessionDaemon?: SessionProxyDaemon;
-  piWebPlugins?: Pick<PiWebPluginService, "manifest" | "readAsset">;
+  piWebPlugins?: Pick<PiWebPluginService, "manifest" | "plugins" | "readAsset">;
+  config?: PiWebConfigService;
   clientDist?: string | false;
   logger?: FastifyServerOptions["logger"];
 }
@@ -100,6 +102,8 @@ export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInsta
 
   app.get("/api/pi-web/status", async () => getPiWebStatus());
   app.get("/api/pi-web/version", async () => getPiWebVersionStatus());
+  app.get("/api/plugins", async () => piWebPlugins.plugins());
+  registerConfigRoutes(app, deps.config);
 
   registerMachineRoutes(app, machines);
 

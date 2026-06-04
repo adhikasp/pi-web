@@ -1,12 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import type { PiWebConfigValues } from "./shared/apiTypes.js";
+import { isPiWebPluginId, piWebPluginIdPattern } from "./shared/pluginIds.js";
 
-export interface PiWebConfig {
-  host?: string;
-  port?: number;
-  allowedHosts?: string[] | true;
-}
+export type PiWebConfig = PiWebConfigValues;
 
 export interface LoadedPiWebConfig {
   path: string;
@@ -14,7 +12,7 @@ export interface LoadedPiWebConfig {
   config: PiWebConfig;
 }
 
-interface LoadOptions {
+export interface LoadOptions {
   env?: NodeJS.ProcessEnv;
   cwd?: string;
 }
@@ -69,11 +67,46 @@ export function effectivePiWebConfig(options: LoadOptions = {}): LoadedPiWebConf
   };
 }
 
+export function savePiWebConfig(config: PiWebConfig, options: LoadOptions = {}): LoadedPiWebConfig {
+  const env = options.env ?? process.env;
+  const path = piWebConfigPath(env, options.cwd ?? process.cwd());
+  const normalized = parsePiWebConfig(piWebConfigRecord(config), path);
+  const existing = readExistingConfigObject(path);
+  delete existing["host"];
+  delete existing["port"];
+  delete existing["allowedHosts"];
+  delete existing["shortcuts"];
+  delete existing["plugins"];
+  const merged = { ...existing, ...piWebConfigRecord(normalized) };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+  return { path, exists: true, config: normalized };
+}
+
+function readExistingConfigObject(path: string): Record<string, unknown> {
+  if (!existsSync(path)) return {};
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (!isRecord(parsed)) throw new Error(`PI WEB config must be a JSON object: ${path}`);
+  return parsed;
+}
+
+function piWebConfigRecord(config: PiWebConfig): Record<string, unknown> {
+  return {
+    ...(config.host !== undefined ? { host: config.host } : {}),
+    ...(config.port !== undefined ? { port: config.port } : {}),
+    ...(config.allowedHosts !== undefined ? { allowedHosts: config.allowedHosts } : {}),
+    ...(config.shortcuts !== undefined ? { shortcuts: config.shortcuts } : {}),
+    ...(config.plugins !== undefined ? { plugins: config.plugins } : {}),
+  };
+}
+
 function parsePiWebConfig(value: Record<string, unknown>, path: string): PiWebConfig {
   return {
     ...(value["host"] !== undefined ? { host: parseString(value["host"], "host", path) } : {}),
     ...(value["port"] !== undefined ? { port: parsePort(value["port"], "port", path) } : {}),
     ...(value["allowedHosts"] !== undefined ? { allowedHosts: parseAllowedHosts(value["allowedHosts"], path) } : {}),
+    ...(value["shortcuts"] !== undefined ? { shortcuts: parseShortcuts(value["shortcuts"], path) } : {}),
+    ...(value["plugins"] !== undefined ? { plugins: parsePlugins(value["plugins"], path) } : {}),
   };
 }
 
@@ -99,6 +132,29 @@ function parseAllowedHosts(value: unknown, path: string): string[] | true {
 function parseAllowedHostsEnv(value: string): string[] | true {
   if (value === "true") return true;
   return value.split(",").map((host) => host.trim()).filter((host) => host !== "");
+}
+
+function parseShortcuts(value: unknown, path: string): Record<string, string | null> {
+  if (!isRecord(value)) throw new Error(`PI WEB config shortcuts must be an object: ${path}`);
+  return Object.fromEntries(Object.entries(value).map(([actionId, shortcut]) => {
+    if (shortcut !== null && (typeof shortcut !== "string" || shortcut === "")) {
+      throw new Error(`PI WEB config shortcut values must be non-empty strings or null: ${path}`);
+    }
+    return [actionId, shortcut];
+  }));
+}
+
+function parsePlugins(value: unknown, path: string): NonNullable<PiWebConfigValues["plugins"]> {
+  if (!isRecord(value) || Array.isArray(value)) throw new Error(`PI WEB config plugins must be an object: ${path}`);
+  return Object.fromEntries(Object.entries(value).map(([pluginId, config]) => {
+    if (!isPiWebPluginId(pluginId)) throw new Error(`PI WEB config plugin ids must match ${piWebPluginIdPattern.source}: ${path}`);
+    if (!isRecord(config) || Array.isArray(config)) throw new Error(`PI WEB config plugin entries must be objects: ${path}`);
+    const enabled = config["enabled"];
+    if (enabled !== undefined && typeof enabled !== "boolean") throw new Error(`PI WEB config plugin enabled values must be booleans: ${path}`);
+    const settings = config["settings"];
+    if (settings !== undefined && (!isRecord(settings) || Array.isArray(settings))) throw new Error(`PI WEB config plugin settings must be objects: ${path}`);
+    return [pluginId, config];
+  }));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

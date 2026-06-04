@@ -1,10 +1,15 @@
-import { LitElement, css, html } from "lit";
+import { LitElement, css, html, svg, type TemplateResult } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { AppState } from "../../appState";
 
+export type AppMobileMainTabBuiltinIcon = "navigation" | "chat" | "files" | "git" | "terminal";
+export type AppMobileMainTabIcon = AppMobileMainTabBuiltinIcon | TemplateResult;
+
 export interface AppMobileMainTab {
   id: AppState["mainView"];
-  label: unknown;
+  label: string;
+  icon?: AppMobileMainTabIcon;
+  badge?: unknown;
   className?: string | undefined;
 }
 
@@ -37,12 +42,20 @@ export class AppMobileMainTabs extends LitElement {
   }
 
   override render() {
+    const fallbackLabels = this.fallbackLabels();
     return html`
       <div class=${this.frameClass()}>
         <div class="mobile-tabs" @scroll=${this.onMobileTabsScroll}>
-          ${this.tabs.map((tab) => html`
-            <button class=${this.tabClass(tab)} @click=${() => { this.onSelect?.(tab.id); }}>${tab.label}</button>
-          `)}
+          ${this.tabs.map((tab) => {
+            const selected = this.selectedView === tab.id;
+            return html`
+              <button class=${this.tabClass(tab)} title=${tab.label} aria-label=${this.tabAriaLabel(tab)} aria-pressed=${String(selected)} @click=${() => { this.onSelect?.(tab.id); }}>
+                ${this.renderTabMark(tab, fallbackLabels)}
+                <span class="tab-label">${tab.label}</span>
+                ${this.isEmptyBadge(tab.badge) ? null : html`<span class="tab-badge">${tab.badge}</span>`}
+              </button>
+            `;
+          })}
         </div>
       </div>
     `;
@@ -57,6 +70,99 @@ export class AppMobileMainTabs extends LitElement {
       ...(tab.className === undefined ? [] : [tab.className]),
       ...(this.selectedView === tab.id ? ["selected"] : []),
     ].join(" ");
+  }
+
+  private tabAriaLabel(tab: AppMobileMainTab): string {
+    if (typeof tab.badge !== "string" && typeof tab.badge !== "number") return tab.label;
+    const badge = String(tab.badge).trim();
+    return badge === "" ? tab.label : `${tab.label}, ${badge}`;
+  }
+
+  private isEmptyBadge(badge: unknown): boolean {
+    return badge === undefined || badge === "";
+  }
+
+  private renderTabMark(tab: AppMobileMainTab, fallbackLabels: Map<AppState["mainView"], string>) {
+    return tab.icon === undefined
+      ? html`<span class="tab-fallback" aria-hidden="true">${fallbackLabels.get(tab.id) ?? this.initialsLabel(tab.label)}</span>`
+      : this.renderIcon(tab.icon);
+  }
+
+  private fallbackLabels(): Map<AppState["mainView"], string> {
+    const fallbackTabs = this.tabs.filter((tab) => tab.icon === undefined);
+    const counts = new Map<string, number>();
+    for (const tab of fallbackTabs) {
+      const initials = this.initialsLabel(tab.label);
+      counts.set(initials, (counts.get(initials) ?? 0) + 1);
+    }
+
+    const labels = new Map<AppState["mainView"], string>();
+    for (const tab of fallbackTabs) {
+      const initials = this.initialsLabel(tab.label);
+      labels.set(tab.id, (counts.get(initials) ?? 0) > 1 ? this.fullFallbackLabel(tab.label) : initials);
+    }
+    return labels;
+  }
+
+  private initialsLabel(label: string): string {
+    const words = label.match(/[\p{L}\p{N}]+/gu) ?? [];
+    const initials = words.map((word) => Array.from(word)[0] ?? "").join("").toLocaleUpperCase();
+    return initials === "" ? "?" : initials;
+  }
+
+  private fullFallbackLabel(label: string): string {
+    const trimmed = label.trim();
+    return trimmed === "" ? "?" : trimmed;
+  }
+
+  private renderIcon(icon: AppMobileMainTabIcon) {
+    if (typeof icon !== "string") return html`<span class="tab-custom-icon" aria-hidden="true">${icon}</span>`;
+    switch (icon) {
+      case "navigation":
+        return svg`
+          <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="6" cy="7" r="1.5"></circle>
+            <path d="M10 7h8"></path>
+            <circle cx="6" cy="12" r="1.5"></circle>
+            <path d="M10 12h8"></path>
+            <circle cx="6" cy="17" r="1.5"></circle>
+            <path d="M10 17h8"></path>
+          </svg>
+        `;
+      case "chat":
+        return svg`
+          <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M7 5h10a3 3 0 0 1 3 3v5a3 3 0 0 1-3 3h-6l-5 4v-4H7a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3Z"></path>
+            <path d="M8 9h8"></path>
+            <path d="M8 13h5"></path>
+          </svg>
+        `;
+      case "files":
+        return svg`
+          <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"></path>
+          </svg>
+        `;
+      case "git":
+        return svg`
+          <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="6" cy="6" r="2"></circle>
+            <circle cx="18" cy="6" r="2"></circle>
+            <circle cx="12" cy="18" r="2"></circle>
+            <path d="M8 6h6"></path>
+            <path d="M6 8v2a6 6 0 0 0 6 6"></path>
+            <path d="M18 8v2a6 6 0 0 1-6 6"></path>
+          </svg>
+        `;
+      case "terminal":
+        return svg`
+          <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+            <path d="m7 10 3 3-3 3"></path>
+            <path d="M12 16h5"></path>
+          </svg>
+        `;
+    }
   }
 
   private observeMobileTabs(): void {
@@ -98,13 +204,23 @@ export class AppMobileMainTabs extends LitElement {
     .mobile-tabs-frame::after { right: 0; background: linear-gradient(270deg, color-mix(in srgb, var(--pi-shadow-strong) 55%, transparent) 0%, transparent 100%); }
     .mobile-tabs-frame.can-scroll-left::before, .mobile-tabs-frame.can-scroll-right::after { opacity: 1; }
     .mobile-tabs { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; }
-    .mobile-tabs button { flex: 0 0 auto; white-space: nowrap; }
-    .navigation-tab { display: none; }
+    .mobile-tabs button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .mobile-tabs .navigation-tab { display: none; }
     .mobile-tabs button.selected { border-color: var(--pi-accent); background: var(--pi-selection-bg); }
-    .tab-badge { display: inline-block; min-width: 14px; margin-left: 4px; border: 1px solid var(--pi-success-border); border-radius: 999px; background: var(--pi-success-surface); color: var(--pi-success); padding: 0 5px; font-size: 11px; line-height: 16px; text-align: center; }
+    .tab-icon { flex: 0 0 auto; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+    .tab-custom-icon { flex: 0 0 auto; width: 18px; height: 18px; display: inline-grid; place-items: center; color: currentColor; pointer-events: none; }
+    .tab-custom-icon svg { width: 18px; height: 18px; pointer-events: none; }
+    .tab-fallback { display: none; font-weight: 650; letter-spacing: .01em; pointer-events: none; }
+    .tab-label { min-width: 0; }
+    .tab-badge { flex: 0 0 auto; display: inline-block; min-width: 14px; margin-left: 0; border: 1px solid var(--pi-success-border); border-radius: 999px; background: var(--pi-success-surface); color: var(--pi-success); padding: 0 5px; font-size: 11px; line-height: 16px; text-align: center; }
     button { border: 1px solid var(--pi-border); border-radius: 8px; background: var(--pi-surface); color: var(--pi-text); padding: 7px 9px; cursor: pointer; }
     @media (max-width: 760px) {
-      .navigation-tab { display: block; }
+      .mobile-tabs { gap: 4px; padding: 6px 8px; }
+      .mobile-tabs button { min-width: 40px; height: 36px; justify-content: center; gap: 4px; padding: 0 8px; }
+      .mobile-tabs .navigation-tab { display: inline-flex; }
+      .tab-fallback { display: inline-block; }
+      .tab-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+      .tab-badge { min-width: 13px; padding: 0 4px; font-size: 10px; line-height: 13px; }
     }
   `;
 }

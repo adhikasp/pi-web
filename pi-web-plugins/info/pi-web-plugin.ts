@@ -3,7 +3,7 @@ import type { PiWebPlugin } from "../../src/client/src/plugins/types";
 const plugin: PiWebPlugin = {
   apiVersion: 1,
   name: "Info Plugin",
-  activate: ({ html }) => ({
+  activate: ({ html, svg }) => ({
     contributions: {
       actions: [
         {
@@ -28,6 +28,13 @@ const plugin: PiWebPlugin = {
         {
           id: "workspace.info",
           title: "Info",
+          icon: svg`
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 11v5"></path>
+              <path d="M12 8h.01"></path>
+            </svg>
+          `,
           order: 1000,
           render: (context) => html`
             <section class="toolbar"><strong>Info</strong></section>
