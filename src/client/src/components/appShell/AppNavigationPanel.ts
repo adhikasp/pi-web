@@ -49,6 +49,7 @@ export class AppNavigationPanel extends LitElement {
   @property({ attribute: false }) onDetachParentSession?: (session: SessionInfo) => void | Promise<void>;
   @property({ attribute: false }) onArchivedCollapsed?: () => void | Promise<void>;
   @property({ attribute: false }) onSelectMachine?: (machine: Machine) => void | Promise<void>;
+  @property({ attribute: false }) onRemoveMachine?: (machine: Machine) => void | Promise<void>;
 
   override render() {
     return html`
@@ -59,15 +60,18 @@ export class AppNavigationPanel extends LitElement {
           <button title="Show Actions" aria-label="Show Actions" @click=${() => { this.onShowActions?.(); }}>Actions</button>
         </div>
       </header>
-      <machine-list
-        .machines=${this.machines}
-        .selected=${this.selectedMachine}
-        .statuses=${this.machineStatuses}
-        .collapsible=${this.collapsible}
-        .collapsed=${this.machinesCollapsed}
-        .onToggleCollapsed=${() => { this.onToggleMachines?.(); }}
-        .onSelect=${(machine: Machine) => this.onSelectMachine?.(machine)}
-      ></machine-list>
+      ${shouldShowMachinesSection(this.machines) ? html`
+        <machine-list
+          .machines=${this.machines}
+          .selected=${this.selectedMachine}
+          .statuses=${this.machineStatuses}
+          .collapsible=${this.collapsible}
+          .collapsed=${this.machinesCollapsed}
+          .onToggleCollapsed=${() => { this.onToggleMachines?.(); }}
+          .onSelect=${(machine: Machine) => this.onSelectMachine?.(machine)}
+          .onRemove=${(machine: Machine) => this.onRemoveMachine?.(machine)}
+        ></machine-list>
+      ` : null}
       <project-list
         .projects=${this.projects}
         .selected=${this.selectedProject}
@@ -129,4 +133,8 @@ export class AppNavigationPanel extends LitElement {
     :host([collapsible]) session-list[collapsed] { flex: 0 0 auto; min-height: auto; overflow: hidden; }
     button { border: 1px solid var(--pi-border); border-radius: 8px; background: var(--pi-surface); color: var(--pi-text); padding: 7px 9px; cursor: pointer; }
   `;
+}
+
+export function shouldShowMachinesSection(machines: readonly Machine[]): boolean {
+  return machines.length > 1;
 }

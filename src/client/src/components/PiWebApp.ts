@@ -595,6 +595,7 @@ export class PiWebApp extends LitElement {
           this.mobileNavigation.expand("projects");
           await this.machines.selectMachine(machine);
         })}
+        .onRemoveMachine=${(machine: Machine) => { void this.removeMachine(machine); }}
         .projects=${this.state.projects}
         .selectedProject=${this.state.selectedProject}
         .workspaceActivities=${this.state.workspaceActivities}
@@ -761,7 +762,7 @@ export class PiWebApp extends LitElement {
       addProject: () => { this.setState({ projectDialogOpen: true }); },
       addMachine: () => this.addMachineFromPrompt(),
       refreshSelectedMachine: () => this.machines.refreshMachineHealth(),
-      removeSelectedMachine: () => this.removeSelectedMachine(),
+      removeSelectedMachine: () => this.removeMachine(),
       openSelectedMachine: () => { this.openSelectedMachine(); },
       configureAuth: () => this.auth.openLogin(),
       logoutAuth: () => this.auth.openLogout(),
@@ -901,8 +902,7 @@ export class PiWebApp extends LitElement {
     await this.machines.addMachine({ name, baseUrl, ...(token === undefined || token === "" ? {} : { token }) });
   }
 
-  private async removeSelectedMachine(): Promise<void> {
-    const machine = this.state.selectedMachine;
+  private async removeMachine(machine: Machine | undefined = this.state.selectedMachine): Promise<void> {
     if (machine === undefined || machine.kind === "local") return;
     if (!window.confirm(`Remove ${machine.name}?\n\nThis only removes it from this PI WEB gateway.`)) return;
     await this.machines.deleteMachine(machine);
