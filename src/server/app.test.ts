@@ -343,6 +343,45 @@ describe("buildApp", () => {
     expect(request).toHaveBeenCalledWith("GET", "/pi-web-plugins/remote-tools/pi-web-plugin.js?v=123");
   });
 
+  it("drops unsafe remote machine plugin manifest modules", async () => {
+    const addResponse = await app.inject({ method: "POST", url: "/api/machines", payload: { name: "Remote", baseUrl: "https://remote.example.test/" } });
+    const remote = addResponse.json<{ id: string }>();
+    remoteClient = fakeRemoteClient({
+      requestJson: vi.fn(() => Promise.resolve({
+        statusCode: 200,
+        headers: { "content-type": "application/json" },
+        body: {
+          plugins: [
+            { id: "safe-tools", module: "nested/pi-web-plugin.js?v=1", source: "local", scope: "local" },
+            { id: "traversal-tools", module: "..%2F..%2Fapi%2Fconfig", source: "local", scope: "local" },
+            { id: "wrong-root", module: "/pi-web-plugins/other/pi-web-plugin.js", source: "local", scope: "local" },
+          ],
+        },
+      })),
+    });
+
+    const manifestResponse = await app.inject({ method: "GET", url: `/api/machines/${remote.id}/pi-web-plugins/manifest.json` });
+
+    expect(manifestResponse.statusCode).toBe(200);
+    expect(manifestResponse.json()).toEqual({
+      plugins: [{ id: "safe-tools", module: `/pi-web-plugins/${machineScopedPluginId(remote.id, "safe-tools")}/nested/pi-web-plugin.js?v=1`, source: "local", scope: "local" }],
+    });
+  });
+
+  it("rejects remote machine plugin asset traversal before proxying", async () => {
+    const addResponse = await app.inject({ method: "POST", url: "/api/machines", payload: { name: "Remote", baseUrl: "https://remote.example.test/" } });
+    const remote = addResponse.json<{ id: string }>();
+    const request = vi.fn(() => Promise.resolve({ statusCode: 200, headers: {}, body: Readable.from([]) }));
+    remoteClient = fakeRemoteClient({ request });
+    const scopedPluginId = machineScopedPluginId(remote.id, "remote-tools");
+
+    const response = await app.inject({ method: "GET", url: `/pi-web-plugins/${scopedPluginId}/..%2F..%2Fapi%2Fconfig` });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "Invalid remote PI WEB plugin asset path" });
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("returns stable errors for invalid project requests", async () => {
     const addResponse = await app.inject({
       method: "POST",

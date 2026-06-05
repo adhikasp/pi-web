@@ -59,8 +59,14 @@ export async function proxyMachinePluginAsset(machines: MachinePluginProxyMachin
     return true;
   }
 
+  const requestPath = remotePluginAssetRequestPath(remotePlugin, assetPath, requestUrl);
+  if (requestPath === undefined) {
+    await reply.code(400).send({ error: "Invalid remote PI WEB plugin asset path" });
+    return true;
+  }
+
   try {
-    const upstream = await client.request("GET", remotePluginAssetRequestPath(remotePlugin, assetPath, requestUrl));
+    const upstream = await client.request("GET", requestPath);
     reply.code(upstream.statusCode);
     applySafeHeaders(reply, upstream.headers);
     if (upstream.body === undefined) await reply.send();
@@ -87,29 +93,57 @@ function rewriteRemotePluginManifest(machineId: string, manifest: RemotePluginMa
 
 function remotePluginModulePath(pluginId: string, module: string): { path: string; query: string } | undefined {
   if (!isPiWebPluginId(pluginId)) return undefined;
+  const prefix = `/pi-web-plugins/${encodeURIComponent(pluginId)}/`;
+  const base = new URL(prefix, "http://pi-web.local");
   try {
-    const url = new URL(module, "http://pi-web.local");
-    const prefix = `/pi-web-plugins/${encodeURIComponent(pluginId)}/`;
-    if (url.pathname.startsWith(prefix)) {
-      return { path: url.pathname.slice(prefix.length), query: url.search };
-    }
-    if (!module.startsWith("/") && !/^https?:\/\//iu.test(module)) {
-      const [path, query = ""] = module.split("?", 2);
-      if (path !== undefined && path !== "") return { path, query: query === "" ? "" : `?${query}` };
-    }
+    const url = new URL(module, base);
+    if (url.origin !== base.origin || !url.pathname.startsWith(prefix)) return undefined;
+    const path = safeRemotePluginAssetPath(url.pathname.slice(prefix.length));
+    return path === undefined ? undefined : { path, query: url.search };
   } catch {
     return undefined;
   }
-  return undefined;
 }
 
-function remotePluginAssetRequestPath(remotePlugin: MachineScopedPluginIdParts, assetPath: string, requestUrl: string): string {
+function remotePluginAssetRequestPath(remotePlugin: MachineScopedPluginIdParts, assetPath: string, requestUrl: string): string | undefined {
+  const path = safeRemotePluginAssetPath(assetPath);
+  if (path === undefined) return undefined;
   const query = requestUrl.includes("?") ? requestUrl.slice(requestUrl.indexOf("?")) : "";
-  return `/pi-web-plugins/${encodeURIComponent(remotePlugin.pluginId)}/${encodePathSegments(assetPath)}${query}`;
+  return `/pi-web-plugins/${encodeURIComponent(remotePlugin.pluginId)}/${path}${query}`;
 }
 
-function encodePathSegments(path: string): string {
-  return path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+function safeRemotePluginAssetPath(path: string): string | undefined {
+  const segments: string[] = [];
+  for (const rawSegment of path.split("/")) {
+    const segment = safeRemotePluginAssetPathSegment(rawSegment);
+    if (segment === undefined) return undefined;
+    if (segment === "") continue;
+    segments.push(segment);
+  }
+  if (segments.length === 0) return undefined;
+  return segments.map((segment) => encodeURIComponent(segment)).join("/");
+}
+
+function safeRemotePluginAssetPathSegment(rawSegment: string): string | undefined {
+  if (rawSegment === "" || rawSegment === ".") return "";
+  if (/%(?:2f|5c)/iu.test(rawSegment)) return undefined;
+  let segment: string;
+  try {
+    segment = decodeURIComponent(rawSegment);
+  } catch {
+    return undefined;
+  }
+  if (segment === "" || segment === ".") return "";
+  if (segment === ".." || segment.includes("/") || segment.includes("\\") || hasControlCharacter(segment)) return undefined;
+  return segment;
+}
+
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
 }
 
 function parseRemoteManifest(value: unknown): RemotePluginManifest {
