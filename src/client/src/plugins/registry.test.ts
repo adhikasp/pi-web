@@ -325,6 +325,69 @@ describe("PluginRegistry", () => {
     expect(registry.getWorkspaceLabelItems({ ...initialAppState(), selectedMachine: testMachine("remote-1") }, workspace)).toEqual([{ type: "text", text: "remote" }]);
     expect(registry.getThemes()).toEqual([]);
   });
+
+  it("prefers gateway plugins over remote plugins with the same source id", () => {
+    const registry = new PluginRegistry();
+    const remotePluginId = machineScopedPluginId("remote-1", "shared-tools");
+    const workspace = testWorkspace();
+    registry.register({
+      id: remotePluginId,
+      machineId: "remote-1",
+      sourcePluginId: "shared-tools",
+      plugin: {
+        apiVersion: 1,
+        name: "Remote Shared Tools",
+        activate: () => ({
+          contributions: {
+            actions: [{ id: "remote-action", title: "Remote Action", run: () => undefined }],
+            workspacePanels: [{ id: "workspace.remote", title: "Remote", render: () => html`<p>Remote</p>` }],
+            workspaceLabels: [{ id: "remote-label", items: () => [{ type: "text", text: "remote" }] }],
+          },
+        }),
+      },
+    });
+
+    expect(registry.getActions(createContext({ selectedMachine: testMachine("remote-1") }).context).map((action) => action.id)).toContain(`${remotePluginId}:remote-action`);
+
+    registry.register({
+      id: "shared-tools",
+      plugin: {
+        apiVersion: 1,
+        name: "Gateway Shared Tools",
+        activate: () => ({
+          contributions: {
+            actions: [{ id: "gateway-action", title: "Gateway Action", run: () => undefined }],
+            workspacePanels: [{ id: "workspace.gateway", title: "Gateway", render: () => html`<p>Gateway</p>` }],
+            workspaceLabels: [{ id: "gateway-label", items: () => [{ type: "text", text: "gateway" }] }],
+          },
+        }),
+      },
+    });
+
+    const remoteActions = registry.getActions(createContext({ selectedMachine: testMachine("remote-1") }).context).map((action) => action.id);
+    expect(remoteActions).toContain("shared-tools:gateway-action");
+    expect(remoteActions).not.toContain(`${remotePluginId}:remote-action`);
+
+    const panels = registry.getWorkspacePanels();
+    expect(panels.find((panel) => panel.id === `${remotePluginId}:workspace.remote`)?.visible?.(createWorkspacePanelContext("remote-1"))).toBe(false);
+    expect(panels.find((panel) => panel.id === "shared-tools:workspace.gateway")?.visible?.(createWorkspacePanelContext("remote-1"))).toBe(true);
+    expect(registry.getWorkspaceLabelItems({ ...initialAppState(), selectedMachine: testMachine("remote-1") }, workspace)).toEqual([{ type: "text", text: "gateway" }]);
+  });
+
+  it("does not activate remote duplicates when the gateway plugin is already registered", () => {
+    const registry = new PluginRegistry();
+    const remoteActivate = vi.fn(() => ({ contributions: { actions: [{ id: "remote-action", title: "Remote Action", run: () => undefined }] } }));
+    registry.register({ id: "shared-tools", plugin: { apiVersion: 1, name: "Gateway Shared Tools", activate: () => ({ contributions: {} }) } });
+
+    registry.register({
+      id: machineScopedPluginId("remote-1", "shared-tools"),
+      machineId: "remote-1",
+      sourcePluginId: "shared-tools",
+      plugin: { apiVersion: 1, name: "Remote Shared Tools", activate: remoteActivate },
+    });
+
+    expect(remoteActivate).not.toHaveBeenCalled();
+  });
 });
 
 function testWorkspace(patch: Partial<Workspace> = {}): Workspace {

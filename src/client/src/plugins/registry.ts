@@ -13,6 +13,7 @@ type RegisteredPluginAction = Omit<PluginAction, "id"> & {
   pluginId: string;
   localId: string;
   machineId?: string;
+  sourcePluginId?: string;
 };
 
 export class PluginRegistry {
@@ -22,29 +23,32 @@ export class PluginRegistry {
   private readonly themes: QualifiedThemeContribution[] = [];
   private readonly themePairs: QualifiedThemePairContribution[] = [];
   private readonly pluginIds = new Set<string>();
+  private readonly gatewayPluginIds = new Set<string>();
   private readonly contributionIds = new Set<QualifiedContributionId>();
 
   register(registration: PiWebPluginRegistration): void {
     const { id, plugin } = registration;
     this.validatePluginId(id);
     if (this.pluginIds.has(id)) throw new Error(`Duplicate plugin id: ${id}`);
+    if (isDuplicateOfGatewayPlugin(registration, this.gatewayPluginIds)) return;
     this.pluginIds.add(id);
 
     const apiVersion: unknown = plugin.apiVersion;
     if (apiVersion !== 1) throw new Error(`Unsupported plugin API version for ${id}: ${String(apiVersion)}`);
     const result = plugin.activate({ apiVersion: 1, pluginId: id, html, svg });
     const contributions = result.contributions;
-    for (const action of contributions.actions ?? []) this.actions.push(this.qualifyAction(id, action, registration.machineId));
-    for (const panel of contributions.workspacePanels ?? []) this.workspacePanels.push(this.qualifyWorkspacePanel(id, panel, registration.machineId));
-    for (const contribution of contributions.workspaceLabels ?? []) this.workspaceLabels.push(this.qualifyWorkspaceLabelContribution(id, contribution, registration.machineId));
+    for (const action of contributions.actions ?? []) this.actions.push(this.qualifyAction(id, action, registration.machineId, registration.sourcePluginId));
+    for (const panel of contributions.workspacePanels ?? []) this.workspacePanels.push(this.qualifyWorkspacePanel(id, panel, registration.machineId, registration.sourcePluginId));
+    for (const contribution of contributions.workspaceLabels ?? []) this.workspaceLabels.push(this.qualifyWorkspaceLabelContribution(id, contribution, registration.machineId, registration.sourcePluginId));
     if (registration.machineId === undefined) {
       for (const theme of contributions.themes ?? []) this.themes.push(this.qualifyTheme(id, theme));
       for (const pair of contributions.themePairs ?? []) this.themePairs.push(this.qualifyThemePair(id, pair));
+      this.gatewayPluginIds.add(id);
     }
   }
 
   getActions(context: PluginRuntimeContext): QualifiedPluginAction[] {
-    return this.actions.filter((action) => isActiveForMachine(action.machineId, runtimeContextMachineId(context))).map((action) => {
+    return this.actions.filter((action) => isActiveForMachine(action.machineId, runtimeContextMachineId(context), action.sourcePluginId, this.gatewayPluginIds)).map((action) => {
       const scopedContext = pluginRuntimeContextFor(context, action.pluginId);
       const enabled = action.enabled?.(scopedContext);
       const qualified: QualifiedPluginAction = {
@@ -85,12 +89,12 @@ export class PluginRegistry {
       });
   }
 
-  private qualifyAction(pluginId: string, action: PluginAction, machineId: string | undefined): RegisteredPluginAction {
+  private qualifyAction(pluginId: string, action: PluginAction, machineId: string | undefined, sourcePluginId: string | undefined): RegisteredPluginAction {
     const id = this.qualify(pluginId, action.id);
-    return { ...action, id, pluginId, localId: action.id, ...(machineId === undefined ? {} : { machineId }) };
+    return { ...action, id, pluginId, localId: action.id, ...(machineId === undefined ? {} : { machineId }), ...(sourcePluginId === undefined ? {} : { sourcePluginId }) };
   }
 
-  private qualifyWorkspacePanel(pluginId: string, panel: WorkspacePanelContribution, machineId: string | undefined): QualifiedWorkspacePanelContribution {
+  private qualifyWorkspacePanel(pluginId: string, panel: WorkspacePanelContribution, machineId: string | undefined, sourcePluginId: string | undefined): QualifiedWorkspacePanelContribution {
     const id = this.qualify(pluginId, panel.id);
     const badge = panel.badge;
     const visible = panel.visible;
@@ -100,13 +104,13 @@ export class PluginRegistry {
       pluginId,
       localId: panel.id,
       ...(machineId === undefined ? {} : { machineId }),
-      visible: (context: WorkspacePanelContext) => isActiveForMachine(machineId, context.machine.id) && (visible?.(workspacePanelContextFor(context, pluginId)) ?? true),
-      ...(badge === undefined ? {} : { badge: (context: WorkspacePanelContext) => isActiveForMachine(machineId, context.machine.id) ? badge(workspacePanelContextFor(context, pluginId)) : undefined }),
+      visible: (context: WorkspacePanelContext) => isActiveForMachine(machineId, context.machine.id, sourcePluginId, this.gatewayPluginIds) && (visible?.(workspacePanelContextFor(context, pluginId)) ?? true),
+      ...(badge === undefined ? {} : { badge: (context: WorkspacePanelContext) => isActiveForMachine(machineId, context.machine.id, sourcePluginId, this.gatewayPluginIds) ? badge(workspacePanelContextFor(context, pluginId)) : undefined }),
       render: (context: WorkspacePanelContext) => panel.render(workspacePanelContextFor(context, pluginId)),
     };
   }
 
-  private qualifyWorkspaceLabelContribution(pluginId: string, contribution: WorkspaceLabelContribution, machineId: string | undefined): QualifiedWorkspaceLabelContribution {
+  private qualifyWorkspaceLabelContribution(pluginId: string, contribution: WorkspaceLabelContribution, machineId: string | undefined, sourcePluginId: string | undefined): QualifiedWorkspaceLabelContribution {
     const id = this.qualify(pluginId, contribution.id);
     const visible = contribution.visible;
     const items = contribution.items;
@@ -116,8 +120,8 @@ export class PluginRegistry {
       pluginId,
       localId: contribution.id,
       ...(machineId === undefined ? {} : { machineId }),
-      visible: (context) => isActiveForMachine(machineId, context.machine.id) && (visible?.(context) ?? true),
-      items: (context) => isActiveForMachine(machineId, context.machine.id) ? items(context) : [],
+      visible: (context) => isActiveForMachine(machineId, context.machine.id, sourcePluginId, this.gatewayPluginIds) && (visible?.(context) ?? true),
+      items: (context) => isActiveForMachine(machineId, context.machine.id, sourcePluginId, this.gatewayPluginIds) ? items(context) : [],
     };
   }
 
@@ -178,8 +182,16 @@ export function installWorkspacePanelScope(context: WorkspacePanelContext, scope
   return context;
 }
 
-function isActiveForMachine(machineId: string | undefined, selectedMachineId: string): boolean {
-  return machineId === undefined || machineId === selectedMachineId;
+function isDuplicateOfGatewayPlugin(registration: PiWebPluginRegistration, gatewayPluginIds: ReadonlySet<string>): boolean {
+  return registration.machineId !== undefined && registration.sourcePluginId !== undefined && gatewayPluginIds.has(registration.sourcePluginId);
+}
+
+function isActiveForMachine(machineId: string | undefined, selectedMachineId: string, sourcePluginId: string | undefined, gatewayPluginIds: ReadonlySet<string>): boolean {
+  return machineId === undefined || (machineId === selectedMachineId && !isHiddenByGatewayPlugin(sourcePluginId, gatewayPluginIds));
+}
+
+function isHiddenByGatewayPlugin(sourcePluginId: string | undefined, gatewayPluginIds: ReadonlySet<string>): boolean {
+  return sourcePluginId !== undefined && gatewayPluginIds.has(sourcePluginId);
 }
 
 function runtimeContextMachineId(context: PluginRuntimeContext): string {

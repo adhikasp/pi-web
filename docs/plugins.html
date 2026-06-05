@@ -302,6 +302,7 @@ After editing, check the manifest endpoint and browser-console failure cases.</c
               <ul>
                 <li>File and terminal helpers run against the selected remote machine.</li>
                 <li>Remote plugin code is loaded best-effort through the current gateway and cached for the page lifetime.</li>
+                <li>If the gateway already has an enabled plugin with the same original id, the gateway plugin wins and the remote duplicate stays hidden.</li>
                 <li>Remote theme contributions are ignored for now because themes are app-wide.</li>
                 <li>Mixed PI WEB versions across federated machines are best-effort and not guaranteed compatible.</li>
               </ul>

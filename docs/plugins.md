@@ -136,6 +136,7 @@ When machine federation is enabled, PI WEB also loads discovered plugins from th
 - actions, workspace panels, and workspace labels only appear while that machine is selected;
 - plugin file and terminal helpers run against that machine;
 - plugin code is loaded best-effort through the current gateway and cached for the browser page lifetime;
+- if the gateway already has an enabled plugin with the same original id, the gateway plugin wins and the remote duplicate stays hidden;
 - remote theme contributions are ignored for now because themes are app-wide;
 - mixed PI WEB versions across federated machines are best-effort and not guaranteed compatible.
 
