@@ -2,4 +2,4 @@
 "@jmfederico/pi-web": patch
 ---
 
-Add file mutation, prompt editor, and attachment APIs to the plugin system, completing the stable workspace interaction surface.
+Add workspace file mutation (`files.writeFile`, `files.deleteFile`, `files.moveFile`) and prompt editor (`prompt.insertText`, `prompt.getText`, `prompt.getSelection`) APIs to the plugin system. File mutations work for local and federated machines, enforce workspace path safety, and auto-refresh the File Explorer.

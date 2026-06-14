@@ -20,7 +20,7 @@ import { SessionStorageWorkspaceSelectionMemory } from "../controllers/workspace
 import { KeyboardShortcutDispatcher } from "../keyboardShortcuts";
 import { selectedMachineId } from "../controllers/types";
 import { RealtimeSocket } from "../sessionSocket";
-import type { PiWebPluginRegistration, PluginMachine, PluginAttachments, PluginPromptEditor, QualifiedContributionId, QualifiedThemeContribution, QualifiedThemePairContribution, QualifiedWorkspacePanelContribution, PluginRuntimeContext, TerminalCommandRunsInternalRuntime, WorkspaceFiles, WorkspaceHost, WorkspaceLabelContext, WorkspaceLabelItem, WorkspacePanelContext } from "../plugins/types";
+import type { PiWebPluginRegistration, PluginMachine, PluginPromptEditor, QualifiedContributionId, QualifiedThemeContribution, QualifiedThemePairContribution, QualifiedWorkspacePanelContribution, PluginRuntimeContext, TerminalCommandRunsInternalRuntime, WorkspaceFiles, WorkspaceHost, WorkspaceLabelContext, WorkspaceLabelItem, WorkspacePanelContext } from "../plugins/types";
 import { CLASSIC_THEME_ID, DEFAULT_THEME_PREFERENCE, applyPiWebTheme, findThemePairForTheme, readStoredThemePreference, resolveThemePreference, writeStoredThemePreference, type ThemePreference, type ThemePreferenceResolution } from "../theme";
 import { corePlugin } from "../plugins/core";
 import { themePackPlugin } from "../plugins/themes";
@@ -1406,72 +1406,6 @@ export class PiWebApp extends LitElement {
         if (sel.empty) return null;
         return { start: sel.from, end: sel.to, text: editor.state.sliceDoc(sel.from, sel.to) };
       },
-      onPaste: (handler) => {
-        if (!this.promptEditor) {
-          console.warn("[pi-web] prompt.onPaste() called but prompt editor is not available. Handler will not be registered.");
-          return () => undefined;
-        }
-        const id = this.promptEditor.addPluginHandler("paste", handler);
-        return () => { this.promptEditor?.removePluginHandler(id); };
-      },
-      onKeyDown: (handler) => {
-        if (!this.promptEditor) {
-          console.warn("[pi-web] prompt.onKeyDown() called but prompt editor is not available. Handler will not be registered.");
-          return () => undefined;
-        }
-        const id = this.promptEditor.addPluginHandler("keydown", handler);
-        return () => { this.promptEditor?.removePluginHandler(id); };
-      },
-      focus: () => {
-        this.promptEditor?.focusInput();
-      },
-    };
-  }
-
-  private createPluginAttachments(): PluginAttachments {
-    const workspace = this.state.selectedWorkspace;
-    const machineId = selectedMachineId(this.state);
-    return {
-      insertFileReference: async (path: string) => {
-        if (!workspace) throw new Error("No workspace selected");
-        try {
-          await workspacesApi.workspaceFile(workspace.projectId, workspace.id, path, machineId);
-        } catch {
-          throw new Error(`File not found in workspace: ${path}`);
-        }
-        const reference = `@${path}`;
-        const editor = this.promptEditor?.view;
-        if (editor) {
-          const sel = editor.state.selection.main;
-          editor.dispatch({
-            changes: { from: sel.from, to: sel.to, insert: reference },
-            selection: { anchor: sel.from + reference.length },
-          });
-        }
-        return reference;
-      },
-      getAttachedFiles: () => {
-        const text = this.promptEditor?.view?.state.doc.toString() ?? "";
-        const matches: string[] = [];
-        const atFilePattern = /@([\w./\-\u00C0-\u024F]+(?:\.[\w]+))/g;
-        let m: RegExpExecArray | null;
-        while ((m = atFilePattern.exec(text)) !== null) {
-          if (m[1] !== undefined) matches.push(m[1]);
-        }
-        return matches;
-      },
-      removeFileReference: (path: string) => {
-        const editor = this.promptEditor?.view;
-        if (!editor) return;
-        const text = editor.state.doc.toString();
-        const reference = `@${path}`;
-        const index = text.indexOf(reference);
-        if (index === -1) return;
-        editor.dispatch({
-          changes: { from: index, to: index + reference.length, insert: "" },
-          selection: { anchor: index },
-        });
-      },
     };
   }
 
@@ -1479,7 +1413,6 @@ export class PiWebApp extends LitElement {
     const createContext = (origin: string): PluginRuntimeContext => installPluginRuntimeScope({
       state: this.state,
       prompt: this.createPromptEditor(),
-      attachments: this.createPluginAttachments(),
       piWebUnstable: {
         terminalCommandRuns: this.terminalCommandRunsForOrigin(origin),
         openSettings: (section) => { this.openSettings(section); },

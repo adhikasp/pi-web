@@ -90,21 +90,11 @@ export interface PluginPromptEditor {
   insertText(text: string): void;
   getText(): string;
   getSelection(): { start: number; end: number; text: string } | null;
-  onPaste(handler: (event: ClipboardEvent) => boolean): () => void;
-  onKeyDown(handler: (event: KeyboardEvent) => boolean): () => void;
-  focus(): void;
-}
-
-export interface PluginAttachments {
-  insertFileReference(path: string): Promise<string>;
-  getAttachedFiles(): string[];
-  removeFileReference(path: string): void;
 }
 
 export interface PluginRuntimeContext {
   state: AppState;
   prompt: PluginPromptEditor;
-  attachments: PluginAttachments;
   piWebUnstable?: PiWebUnstableRuntimeContext;
   openActionPalette: () => void;
   focusPrompt: () => void;

@@ -86,12 +86,19 @@ export async function deleteWorkspaceFile(rootPath: string, path: string | undef
   // deletes the symlink itself, not the target it points to.
   // resolveInsideWorkspace would call realpath on the target, following
   // symlinks and resolving the symlink's destination instead.
-  const { target, relativePath } = await resolveParentInsideWorkspace(rootPath, path);
+  const { root, target, relativePath } = await resolveParentInsideWorkspace(rootPath, path);
   try {
-    const s = await lstat(target);
+    // Resolve symlinks in the parent path to prevent escape via a symlinked
+    // parent directory. The final path component is intentionally NOT resolved
+    // so that lstat/unlink act on the entry itself (deleting a symlink rather
+    // than the file it points to).
+    const realParent = await realpath(dirname(target));
+    const realTarget = join(realParent, basename(target));
+    ensureInside(root, realTarget);
+    const s = await lstat(realTarget);
     // Allow deleting regular files and symlinks, but not directories
     if (s.isDirectory()) throw new Error("Path is a directory, use directory deletion instead");
-    await unlink(target);
+    await unlink(realTarget);
     return { path: relativePath, existed: true };
   } catch (error: unknown) {
     if (isNodeErrorWithCode(error, "ENOENT")) return { path: relativePath, existed: false };

@@ -81,37 +81,11 @@ export interface PluginPromptEditor {
   getText(): string;
   /** Get the current selection range, or null if no selection or editor not mounted. */
   getSelection(): { start: number; end: number; text: string } | null;
-  /** Register a paste event handler scoped to the prompt editor.
-   *  Handlers run in registration order; first handler returning true consumes the event.
-   *  Returns an unsubscribe function. No-op if the editor is not mounted. */
-  onPaste(handler: (event: ClipboardEvent) => boolean): () => void;
-  /** Register a keydown handler scoped to the prompt editor.
-   *  Handlers run in registration order; first handler returning true consumes the event.
-   *  Returns unsubscribe. No-op if the editor is not mounted. */
-  onKeyDown(handler: (event: KeyboardEvent) => boolean): () => void;
-  /** Focus the prompt editor. No-op if not mounted. */
-  focus(): void;
-}
-
-export interface PluginAttachments {
-  /** Insert a file reference at the current cursor position in the chat prompt.
-   *  Validates that the file exists in the workspace before insertion.
-   *  Does not auto-focus the editor (unlike prompt.insertText). Use prompt.focus() first if needed.
-   *  @throws Error if no workspace is selected or the file doesn't exist
-   *  Returns the canonical @file reference string (e.g., "@path/to/file.png"). */
-  insertFileReference(path: string): Promise<string>;
-  /** List currently attached file paths in the prompt. Returns paths without the @ prefix.
-   *  Best-effort heuristic: matches @path/to/file.ext patterns. May match email-like patterns;
-   *  use insertFileReference() for guaranteed-accurate insertion. */
-  getAttachedFiles(): string[];
-  /** Remove a file reference from the prompt by path. Removes the first occurrence of @path. */
-  removeFileReference(path: string): void;
 }
 
 export interface PluginRuntimeContext {
   state: PluginRuntimeState;
   prompt: PluginPromptEditor;
-  attachments: PluginAttachments;
   openActionPalette: () => void;
   focusPrompt: () => void;
   addProject: () => void | Promise<void>;

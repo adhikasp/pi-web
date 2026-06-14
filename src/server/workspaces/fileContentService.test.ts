@@ -240,6 +240,22 @@ describe("deleteWorkspaceFile", () => {
     const realContent = await readFile(join(outsideDir, "real.txt"), "utf8");
     expect(realContent).toBe("real content");
   });
+
+  it("prevents deleting through a symlinked parent directory that escapes the workspace", async () => {
+    const root = await tempWorkspace();
+    await mkdir(join(root, "subdir"), { recursive: true });
+    // A real file living outside the workspace that must not be deletable.
+    const outsideDir = await mkdtemp(join(tmpdir(), "pi-web-outside-delete-parent-"));
+    roots.push(outsideDir);
+    await writeFile(join(outsideDir, "victim.txt"), "important");
+    // A symlinked parent directory inside the workspace pointing outside.
+    await symlink(outsideDir, join(root, "subdir", "escape"), "junction");
+
+    await expect(deleteWorkspaceFile(root, "subdir/escape/victim.txt")).rejects.toThrow("Path escapes workspace");
+    // The outside file must survive.
+    const realContent = await readFile(join(outsideDir, "victim.txt"), "utf8");
+    expect(realContent).toBe("important");
+  });
 });
 
 describe("moveWorkspaceFile", () => {

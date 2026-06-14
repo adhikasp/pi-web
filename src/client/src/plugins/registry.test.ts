@@ -18,14 +18,6 @@ function createContext(statePatch: Partial<AppState> = {}) {
       insertText: vi.fn(),
       getText: vi.fn(() => ""),
       getSelection: vi.fn(() => null),
-      onPaste: vi.fn(() => vi.fn()),
-      onKeyDown: vi.fn(() => vi.fn()),
-      focus: vi.fn(() => { calls.push("prompt.focus"); }),
-    },
-    attachments: {
-      insertFileReference: vi.fn(),
-      getAttachedFiles: vi.fn(() => []),
-      removeFileReference: vi.fn(),
     },
     piWebUnstable: {
       terminalCommandRuns: {

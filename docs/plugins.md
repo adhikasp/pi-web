@@ -474,64 +474,19 @@ The `prompt` helper on `PluginRuntimeContext` provides stable access to the chat
 | `insertText(text)` | Insert text at cursor position. When text is selected, replaces the selection. Focuses the editor first if not focused. |
 | `getText()` | Returns the full prompt text. |
 | `getSelection()` | Returns `{ start, end, text }` if text is selected, or `null`. |
-| `onPaste(handler)` | Register a paste handler scoped to the prompt editor. Returns an unsubscribe function. Handler returns `true` to consume the event. |
-| `onKeyDown(handler)` | Register a keydown handler scoped to the prompt editor. Returns an unsubscribe function. Handler returns `true` to consume the event. |
-| `focus()` | Focus the prompt editor. |
 
 Usage:
 
 ```js
-// Insert text at cursor
+// Insert text at the cursor (e.g. a file mention)
 context.prompt.insertText("@file.txt");
 
-// Intercept paste events
-const unsub = context.prompt.onPaste((event) => {
-  const items = event.clipboardData?.items;
-  if (items?.[0]?.type.startsWith("image/")) {
-    // Handle image paste
-    return true; // consume the event
-  }
-  return false;
-});
-// Later, when the plugin no longer needs the handler:
-unsub();
+// Read the current prompt and selection
+const text = context.prompt.getText();
+const selection = context.prompt.getSelection(); // { start, end, text } | null
 ```
 
-Handlers registered via `onPaste` and `onKeyDown` are scoped to the prompt editor using CodeMirror's extension system. They run in registration order: if a handler returns `true` to consume the event, subsequent plugin handlers for the same event will not run (first-to-consume-wins). Register handlers early if your plugin needs to intercept events before others. Handlers are automatically cleaned up when the editor is destroyed. Call the returned unsubscribe function when your plugin no longer needs the handler. Do not use `document.addEventListener` for prompt interactions — raw DOM listeners are not scoped to the editor, can leak memory, and may break across PI WEB upgrades.
-
-`focusPrompt()` on `PluginRuntimeContext` is kept for backward compatibility. `prompt.focus()` is the preferred path.
-
-### Attachment API
-
-The `attachments` helper on `PluginRuntimeContext` manages file references in the chat prompt:
-
-| Method | Description |
-| --- | --- |
-| `insertFileReference(path)` | Validate a workspace file exists and insert `@path` at the cursor. Returns the reference string. Throws if no workspace is selected or the file does not exist. |
-| `getAttachedFiles()` | Returns an array of file paths currently referenced in the prompt (without the `@` prefix). |
-| `removeFileReference(path)` | Remove the first occurrence of `@path` from the prompt. |
-
-Usage:
-
-```js
-// Save a file, then attach it
-const result = await context.files.writeFile(".pi-paste/screenshot.png", imageBytes);
-const ref = await context.attachments.insertFileReference(result.path);
-// ref is "@.pi-paste/screenshot.png"
-
-// Check what's attached
-const files = context.attachments.getAttachedFiles();
-// files is [".pi-paste/screenshot.png"]
-
-// Remove it
-context.attachments.removeFileReference(".pi-paste/screenshot.png");
-```
-
-`insertFileReference` validates the file exists using `files.readFile()` before inserting the `@path` reference. Use `files.writeFile()` to create the file first, then `attachments.insertFileReference()` to attach it.
-
-`getAttachedFiles()` uses a pattern that matches `@path/to/file.ext` — it requires a file extension (`.something`) to avoid matching email addresses like `user@example.com`. Paths are returned without the `@` prefix.
-
-`removeFileReference(path)` removes the first occurrence of `@path` in the prompt text. If the path is not found, it does nothing.
+Use `focusPrompt()` on `PluginRuntimeContext` to move focus to the prompt editor.
 
 #### Keyboard shortcuts
 
@@ -966,7 +921,7 @@ If you are an AI agent building or editing a PI WEB plugin, follow this checklis
 9. Add workspace panels for larger workspace UI.
 10. Add workspace labels for compact inline metadata.
 11. Return arrays from workspace label `items()`; return an empty array to render nothing.
-12. Use documented context helpers first: `files`, `terminal`, `host.requestRender`, `workspace`, `machine`, `state.selectedWorkspace`, `state.selectedSession`, `state.piWebStatus`, `prompt`, and `attachments`.
+12. Use documented context helpers first: `files`, `terminal`, `host.requestRender`, `workspace`, `machine`, `state.selectedWorkspace`, `state.selectedSession`, `state.piWebStatus`, and `prompt`.
 13. Do not fetch PI WEB `/api/...` endpoints directly unless you intentionally accept private API churn; prefer documented helpers.
 14. Treat plugins as trusted code and avoid reading or displaying secrets unless intentional.
 15. After local edits, tell the user to hard reload the browser and check the console for plugin errors.
