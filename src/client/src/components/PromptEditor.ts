@@ -13,7 +13,7 @@ import { machineSessionKey } from "../machineKeys";
 import { detectPromptCompletionTrigger, fileCompletionInsertText, type PromptCompletionTrigger } from "../promptCompletions";
 import { clearDraft, loadDraft, saveDraft } from "../promptDraftStorage";
 import { loadAttachmentDelivery, saveAttachmentDelivery } from "../attachmentPreferences";
-import { createMobilePromptEnterMedia, readPromptEnterPreference, shouldSendPromptOnEnter } from "../promptEnterBehavior";
+import { createMobilePromptEnterMedia, readPromptEnterPreference, shouldSendPromptOnEnterShortcut, shouldUsePromptEnterShiftShortcut } from "../promptEnterBehavior";
 import { promptEditorStyles, type CompletionItem } from "./shared";
 import { renderAttachIcon, renderSendIcon, renderQueueIcon, renderSteerIcon, renderStopIcon, renderThinkingGauge } from "./promptEditorIcons";
 import { thinkingGauge, thinkingLevelLabel } from "../../../shared/thinkingLevels";
@@ -61,6 +61,7 @@ export class PromptEditor extends LitElement {
   private readonly editableCompartment = new Compartment();
   private readonly readOnlyCompartment = new Compartment();
   private readonly mobilePromptEnterMedia = createMobilePromptEnterMedia();
+  private explicitShiftKeyActive = false;
 
   protected override willUpdate(changed: PropertyValues<this>) {
     if (!changed.has("sessionId") && !changed.has("machineId")) return;
@@ -230,6 +231,10 @@ export class PromptEditor extends LitElement {
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of((view) => inputAssistanceContentAttributes(view.state.sliceDoc(0, view.state.selection.main.head))),
+          EditorView.domEventHandlers({
+            keyup: (event) => this.handleEditorKeyUp(event),
+            blur: () => this.resetEditorModifierState(),
+          }),
           placeholder("Message pi... Use / for commands, @ for tracked files, @ space for all files"),
           this.editableCompartment.of(EditorView.editable.of(!this.disabled)),
           this.readOnlyCompartment.of(EditorState.readOnly.of(this.disabled)),
@@ -237,11 +242,10 @@ export class PromptEditor extends LitElement {
             if (update.docChanged) this.updateDraft(update.state.doc.toString());
           }),
           keymap.of([
+            { any: (view, event) => this.handleEditorKeyDown(event, view) },
             { key: "ArrowDown", run: () => this.moveCompletion(1) },
             { key: "ArrowUp", run: () => this.moveCompletion(-1) },
             { key: "Escape", run: () => this.closeCompletions() },
-            { key: "Enter", run: (view) => this.handleEditorEnter(view) },
-            { key: "Shift-Enter", run: (view) => insertNewlineContinueMarkup(view) || insertNewlineAndIndent(view) },
             { key: "Tab", run: (view) => this.handleEditorTab(view) },
             { key: "Shift-Tab", run: (view) => indentWithTab.shift?.(view) ?? false },
             { key: "Backspace", run: (view) => deleteMarkupBackward(view) },
@@ -337,13 +341,39 @@ export class PromptEditor extends LitElement {
     return true;
   }
 
-  private handleEditorEnter(view: EditorView): boolean {
-    if (this.completions.length) {
+  private handleEditorKeyDown(event: KeyboardEvent, view: EditorView): boolean {
+    if (event.key === "Shift") {
+      this.explicitShiftKeyActive = true;
+      return false;
+    }
+    if (event.key !== "Enter") {
+      this.explicitShiftKeyActive = false;
+      return false;
+    }
+    if (event.defaultPrevented || event.isComposing || view.composing) return false;
+
+    const shiftKey = shouldUsePromptEnterShiftShortcut(event.shiftKey, this.explicitShiftKeyActive, this.mobilePromptEnterMedia);
+    this.explicitShiftKeyActive = false;
+    return this.handleEditorEnter(view, shiftKey);
+  }
+
+  private handleEditorKeyUp(event: KeyboardEvent): boolean {
+    if (event.key === "Shift") this.explicitShiftKeyActive = false;
+    return false;
+  }
+
+  private resetEditorModifierState(): boolean {
+    this.explicitShiftKeyActive = false;
+    return false;
+  }
+
+  private handleEditorEnter(view: EditorView, shiftKey: boolean): boolean {
+    if (!shiftKey && this.completions.length) {
       const completion = this.completions[this.selectedIndex];
       if (completion !== undefined) this.pick(completion);
       return true;
     }
-    if (!shouldSendPromptOnEnter(this.mobilePromptEnterMedia, readPromptEnterPreference())) {
+    if (!shouldSendPromptOnEnterShortcut(shiftKey, this.mobilePromptEnterMedia, readPromptEnterPreference())) {
       return insertNewlineContinueMarkup(view) || insertNewlineAndIndent(view);
     }
     this.send(this.canSteer || this.isCompacting ? "followUp" : undefined);

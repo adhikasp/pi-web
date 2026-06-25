@@ -38,6 +38,19 @@ export function shouldSendPromptOnEnter(media = createMobilePromptEnterMedia(), 
   return media?.matches !== true;
 }
 
+export function shouldUsePromptEnterShiftShortcut(shiftKey: boolean, explicitShiftKeyActive: boolean, media = createMobilePromptEnterMedia()): boolean {
+  // Touch keyboards can report autocapitalization as Shift on Enter after a line break.
+  // On mobile-like screens, only trust Shift when the editor saw an explicit Shift keydown.
+  if (!shiftKey) return false;
+  if (media?.matches === true) return explicitShiftKeyActive;
+  return true;
+}
+
+export function shouldSendPromptOnEnterShortcut(shiftKey: boolean, media = createMobilePromptEnterMedia(), preference = readPromptEnterPreference()): boolean {
+  const plainEnterSends = shouldSendPromptOnEnter(media, preference);
+  return shiftKey ? !plainEnterSends : plainEnterSends;
+}
+
 function browserStorage(): PromptEnterPreferenceStorage | undefined {
   if (typeof window === "undefined") return undefined;
   try {

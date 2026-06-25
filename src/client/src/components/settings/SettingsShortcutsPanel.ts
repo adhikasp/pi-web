@@ -16,12 +16,12 @@ const PROMPT_ENTER_OPTIONS: readonly { value: PromptEnterPreference; label: stri
   {
     value: "send",
     label: "Enter sends message",
-    description: "Plain Enter sends the chat message from this browser.",
+    description: "Enter sends the chat message; Shift+Enter adds a new line when supported.",
   },
   {
     value: "newline",
     label: "Enter inserts new line",
-    description: "Plain Enter adds a line break; use the send button to send.",
+    description: "Enter adds a line break; Shift+Enter sends the chat message when supported.",
   },
 ];
 
@@ -127,9 +127,9 @@ export class SettingsShortcutsPanel extends LitElement {
         <div class="prompt-enter-copy">
           <span class="card-eyebrow">Chat composer</span>
           <h3 id="prompt-enter-preference-title">Enter key behavior</h3>
-          <p>Choose what plain Enter does in this browser.</p>
+          <p>Choose what Enter does in this browser. Shift+Enter does the opposite when supported; automatic touch-keyboard capitalization is ignored to avoid accidental sends.</p>
         </div>
-        <div class="prompt-enter-options" role="radiogroup" aria-label="Plain Enter behavior in the chat composer">
+        <div class="prompt-enter-options" role="radiogroup" aria-label="Enter and Shift Enter behavior in the chat composer">
           ${PROMPT_ENTER_OPTIONS.map((option) => html`
             <label class="prompt-enter-option">
               <input

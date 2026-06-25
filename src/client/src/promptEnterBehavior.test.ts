@@ -5,6 +5,8 @@ import {
   PROMPT_ENTER_PREFERENCE_STORAGE_KEY,
   readPromptEnterPreference,
   shouldSendPromptOnEnter,
+  shouldSendPromptOnEnterShortcut,
+  shouldUsePromptEnterShiftShortcut,
   writePromptEnterPreference,
   type PromptEnterMedia,
 } from "./promptEnterBehavior";
@@ -24,6 +26,23 @@ describe("promptEnterBehavior", () => {
     expect(shouldSendPromptOnEnter({ matches: true } satisfies PromptEnterMedia, "send")).toBe(true);
     expect(shouldSendPromptOnEnter({ matches: false } satisfies PromptEnterMedia, "newline")).toBe(false);
     expect(shouldSendPromptOnEnter(undefined, "newline")).toBe(false);
+  });
+
+  it("swaps Shift+Enter with the plain Enter behavior", () => {
+    expect(shouldSendPromptOnEnterShortcut(false, { matches: false } satisfies PromptEnterMedia, "auto")).toBe(true);
+    expect(shouldSendPromptOnEnterShortcut(true, { matches: false } satisfies PromptEnterMedia, "auto")).toBe(false);
+    expect(shouldSendPromptOnEnterShortcut(false, { matches: true } satisfies PromptEnterMedia, "auto")).toBe(false);
+    expect(shouldSendPromptOnEnterShortcut(true, { matches: true } satisfies PromptEnterMedia, "auto")).toBe(true);
+    expect(shouldSendPromptOnEnterShortcut(true, undefined, "send")).toBe(false);
+    expect(shouldSendPromptOnEnterShortcut(true, undefined, "newline")).toBe(true);
+  });
+
+  it("ignores implicit Shift state on mobile-like keyboards", () => {
+    expect(shouldUsePromptEnterShiftShortcut(false, true, { matches: true } satisfies PromptEnterMedia)).toBe(false);
+    expect(shouldUsePromptEnterShiftShortcut(true, false, { matches: true } satisfies PromptEnterMedia)).toBe(false);
+    expect(shouldUsePromptEnterShiftShortcut(true, true, { matches: true } satisfies PromptEnterMedia)).toBe(true);
+    expect(shouldUsePromptEnterShiftShortcut(true, false, { matches: false } satisfies PromptEnterMedia)).toBe(true);
+    expect(shouldUsePromptEnterShiftShortcut(true, false, undefined)).toBe(true);
   });
 
   it("parses local storage preference values", () => {
