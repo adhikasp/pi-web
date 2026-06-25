@@ -1032,7 +1032,7 @@ describe("PiSessionService", () => {
       }
     });
 
-    it("hydrates persisted links to archived children without scanning unrelated child headers", async () => {
+    it("does not hydrate persisted links when the exact child file is unavailable", async () => {
       const parentFile = "/sessions/parent-1.jsonl";
       const parent = fakeRuntime("parent-1", {
         sessionFile: parentFile,
@@ -1043,24 +1043,17 @@ describe("PiSessionService", () => {
       const service = new PiSessionService(new CapturingSessionEventHub(), {
         createAgentRuntime: runtimeCreator(parent.runtime),
         sessionManager: { create: () => parent.session.sessionManager, list: () => Promise.resolve([]), listAll: () => Promise.resolve([]), open: () => fakeSessionManager() },
-        archiveStore: {
-          ...emptyArchiveStore(),
-          list: () => Promise.resolve([]),
-          get: (sessionId) => Promise.resolve(sessionId === "child-1" ? { sessionId: "child-1", cwd: "/workspace-feature", archivedAt: "2026-01-01T00:00:00.000Z", parentSessionPath: parentFile } : undefined),
-          isArchived: (sessionId) => Promise.resolve(sessionId === "child-1"),
-        },
+        archiveStore: emptyArchiveStore(),
         heartbeatIntervalMs: 60_000,
       });
 
       await service.start("/workspace");
 
-      await expect(service.listSubsessions("parent-1")).resolves.toEqual([
-        { sessionId: "child-1", cwd: "/workspace-feature", status: "archived" },
-      ]);
+      await expect(service.listSubsessions("parent-1")).resolves.toEqual([]);
       await service.dispose();
     });
 
-    it("does not hydrate parent links without a child file or exact archived child validation", async () => {
+    it("does not hydrate parent links without a child file", async () => {
       const parentFile = "/sessions/parent-1.jsonl";
       const parent = fakeRuntime("parent-1", {
         sessionFile: parentFile,
@@ -1071,10 +1064,7 @@ describe("PiSessionService", () => {
       const service = new PiSessionService(new CapturingSessionEventHub(), {
         createAgentRuntime: runtimeCreator(parent.runtime),
         sessionManager: { create: () => parent.session.sessionManager, list: () => Promise.resolve([]), listAll: () => Promise.resolve([]), open: () => fakeSessionManager() },
-        archiveStore: {
-          ...emptyArchiveStore(),
-          get: (sessionId) => Promise.resolve(sessionId === "child" ? { sessionId: "child-fork", cwd: "/workspace-feature", archivedAt: "2026-01-01T00:00:00.000Z", parentSessionPath: parentFile } : undefined),
-        },
+        archiveStore: emptyArchiveStore(),
         heartbeatIntervalMs: 60_000,
       });
 
@@ -1633,7 +1623,7 @@ describe("PiSessionService", () => {
       await service.dispose();
     });
 
-    it("reports an archived child's status in the subsession list", async () => {
+    it("reports a missing tracked child file as unknown in the subsession list", async () => {
       const { service } = subsessionService({ allowed: true, cwd: "/workspace-feature" });
       await service.start("/workspace");
       await service.spawnSubsession({ spawningCwd: "/workspace", parentSessionId: "parent-1", parentSessionFile: "/tmp/parent-1.jsonl", prompt: "go", cwd: "/workspace-feature" });
@@ -1641,7 +1631,7 @@ describe("PiSessionService", () => {
       await service.archive("child-1");
 
       await expect(service.listSubsessions("parent-1")).resolves.toEqual([
-        { sessionId: "child-1", cwd: "/workspace-feature", status: "archived" },
+        { sessionId: "child-1", cwd: "/workspace-feature", status: "unknown" },
       ]);
       await service.dispose();
     });

@@ -503,7 +503,7 @@ export class PiSessionService {
     return {
       sessionId,
       cwd: session.sessionManager.getCwd(),
-      status: await this.subsessionStatus(session),
+      status: this.subsessionStatus(session),
       finalText: finalAssistantText(messages),
       messageCount: messages.length,
     };
@@ -516,7 +516,7 @@ export class PiSessionService {
     return {
       sessionId,
       cwd: session.sessionManager.getCwd(),
-      status: await this.subsessionStatus(session),
+      status: this.subsessionStatus(session),
       ...view,
     };
   }
@@ -645,7 +645,7 @@ export class PiSessionService {
 
   private async registerPersistedSubsessionLinks(parentSessionId: string, parentManager: PiSessionManager, parentSessionFile: string | undefined): Promise<void> {
     // Parent custom links are the authoritative recovery record: verify the
-    // exact live child file/header or an exact archived child before tracking.
+    // exact live child file/header before tracking.
     const entries = parentManager.getEntries?.() ?? parentManager.getBranch();
     for (const entry of entries) {
       const link = parsePersistedParentSubsessionLink(entry);
@@ -664,16 +664,8 @@ export class PiSessionService {
   }
 
   private async parentLinkHasValidChildTarget(parentSessionFile: string, link: PersistedParentSubsessionLink): Promise<boolean> {
-    if (link.spawnedSessionFile !== undefined && (await sessionFileHeaderMatches(link.spawnedSessionFile, { sessionId: link.spawnedSessionId, parentSessionFile }))) return true;
-    return this.archivedSubsessionLinkMatchesParent(parentSessionFile, link);
-  }
-
-  private async archivedSubsessionLinkMatchesParent(parentSessionFile: string, link: PersistedParentSubsessionLink): Promise<boolean> {
-    const archived = await this.getArchivedExact(link.spawnedSessionId);
-    if (archived?.parentSessionPath === undefined) return false;
-    if (!sessionPathsEqual(archived.parentSessionPath, parentSessionFile)) return false;
-    if (archived.originalPath !== undefined && link.spawnedSessionFile !== undefined && !sessionPathsEqual(archived.originalPath, link.spawnedSessionFile)) return false;
-    return true;
+    return link.spawnedSessionFile !== undefined
+      && await sessionFileHeaderMatches(link.spawnedSessionFile, { sessionId: link.spawnedSessionId, parentSessionFile });
   }
 
   private async recoverSubsessionTrackingForOpenedSession(session: PiAgentSession): Promise<void> {
@@ -738,9 +730,6 @@ export class PiSessionService {
     const active = this.activeChildForSubsessionLink(link);
     if (active !== undefined) return active.runtime.session;
 
-    const archived = await this.getArchivedExact(sessionId);
-    if (archived?.archivePath !== undefined) return (await this.create(this.sessionManager.open(archived.archivePath), archived.cwd)).runtime.session;
-
     if (link.childSessionFile !== undefined) {
       if (!(await sessionFileHeaderMatches(link.childSessionFile, { sessionId, parentSessionFile: link.parentSessionFile }))) throw new Error("Session not found");
       const sessionManager = this.sessionManager.open(link.childSessionFile);
@@ -754,10 +743,8 @@ export class PiSessionService {
     const link = this.subsessionLinks.get(childSessionId);
     const active = link === undefined ? undefined : this.activeChildForSubsessionLink(link);
     if (active !== undefined) {
-      return { cwd: active.runtime.cwd, status: await this.subsessionStatus(active.runtime.session) };
+      return { cwd: active.runtime.cwd, status: this.subsessionStatus(active.runtime.session) };
     }
-    const archived = await this.getArchivedExact(childSessionId);
-    if (archived !== undefined) return { cwd: archived.cwd, status: "archived" };
     if (link?.childSessionFile !== undefined && (await sessionFileHeaderMatches(link.childSessionFile, { sessionId: childSessionId, parentSessionFile: link.parentSessionFile }))) {
       return { cwd: link.cwd ?? "", status: "idle" };
     }
@@ -765,8 +752,7 @@ export class PiSessionService {
     return { cwd: "", status: "unknown" };
   }
 
-  private async subsessionStatus(session: PiAgentSession): Promise<SubsessionStatus> {
-    if (await this.getArchivedExact(session.sessionId) !== undefined) return "archived";
+  private subsessionStatus(session: PiAgentSession): SubsessionStatus {
     if (this.hasActiveWork(session)) return "working";
     if (this.activities.get(session.sessionId)?.phase === "error") return "error";
     return "idle";
@@ -1236,11 +1222,6 @@ export class PiSessionService {
     if (archived === undefined) return undefined;
     if (isPiSessionRef(ref) && archived.cwd !== ref.cwd) return undefined;
     return archived;
-  }
-
-  private async getArchivedExact(sessionId: string): Promise<ArchivedSessionRecord | undefined> {
-    const archived = await this.archiveStore.get(sessionId);
-    return archived?.sessionId === sessionId ? archived : undefined;
   }
 
   private activeForLookup(ref: PiSessionLookup): ActiveSession<PiSessionRuntime> | undefined {

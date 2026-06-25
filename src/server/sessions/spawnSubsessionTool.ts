@@ -3,7 +3,7 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import type { TranscriptContentKind, TranscriptEntry, TranscriptRole, TranscriptView } from "./subsessionTranscript.js";
 
 /** Lifecycle phase of a tracked subsession as seen by its parent. */
-export type SubsessionStatus = "working" | "idle" | "error" | "archived" | "unknown";
+export type SubsessionStatus = "working" | "idle" | "error" | "unknown";
 
 export interface SpawnSubsessionResult {
   sessionId: string;
