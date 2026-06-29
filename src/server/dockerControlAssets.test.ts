@@ -247,6 +247,23 @@ describe("Docker command assets", () => {
     expect(result.stdout).toContain("Usage: docker/install.sh [options]");
   });
 
+  it("explains source checkout runtime-mode mistakes", async () => {
+    const fakeDocker = await installFakeDocker();
+
+    const result = await runDockerCommandAllowFailure(["start"], {
+      ...cleanProcessEnv(),
+      PATH: `${fakeDocker.binDir}:${process.env["PATH"] ?? ""}`,
+      HOME: "/home/pi-web-test",
+    });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("runtime install assets were not found");
+    expect(result.stderr).toContain("running this checkout's Docker command in runtime mode");
+    expect(result.stderr).toContain("./docker/pi-web-docker --dev start");
+    expect(result.stderr).toContain("/home/pi-web-test/.local/share/pi-web-docker/pi-web-docker start");
+    expect(result.stderr).toContain("PI_WEB_DOCKER_INSTALL_DIR");
+  });
+
   it("starts restart-sessiond in a detached Docker helper", async () => {
     const installDir = await createRuntimeInstall();
     const fakeDocker = await installFakeDocker();

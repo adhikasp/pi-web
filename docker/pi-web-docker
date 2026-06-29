@@ -250,11 +250,59 @@ docker_compose() {
   fi
 }
 
+is_checkout_runtime_default_root() {
+  root=$1
+  [ -z "${PI_WEB_DOCKER_INSTALL_DIR:-}" ] || return 1
+  [ -f "$root/compose.dev.yml" ] || return 1
+  [ -f "$root/../package.json" ] || return 1
+  [ -f "$root/pi-web-docker" ] || return 1
+}
+
+runtime_command_hint() {
+  command=${command_name:-status}
+  printf '%s\n' "$command"
+}
+
+default_runtime_entrypoint_hint() {
+  if [ -n "${XDG_DATA_HOME:-}" ]; then
+    printf '%s\n' "$XDG_DATA_HOME/pi-web-docker/pi-web-docker"
+  elif [ -n "${HOME:-}" ]; then
+    printf '%s\n' "$HOME/.local/share/pi-web-docker/pi-web-docker"
+  else
+    printf '%s\n' '~/.local/share/pi-web-docker/pi-web-docker'
+  fi
+}
+
+die_missing_runtime_asset() {
+  root=$1
+  missing_path=$2
+  if is_checkout_runtime_default_root "$root"; then
+    command_hint=$(runtime_command_hint)
+    runtime_entrypoint=$(default_runtime_entrypoint_hint)
+    log "pi-web-docker: runtime install assets were not found in $root."
+    log "Missing generated asset: $missing_path"
+    log ""
+    log "You appear to be running this checkout's Docker command in runtime mode."
+    log "For development, use:"
+    log ""
+    log "  ./docker/pi-web-docker --dev $command_hint"
+    log ""
+    log "For an installed runtime, use the installed command, usually:"
+    log ""
+    log "  $runtime_entrypoint $command_hint"
+    log ""
+    log "Or set PI_WEB_DOCKER_INSTALL_DIR to your runtime install directory."
+    exit 1
+  fi
+
+  die "runtime install asset not found at $missing_path; run pi-web-docker install first"
+}
+
 require_runtime_compose_assets() {
   root=$1
-  [ -f "$root/compose.yml" ] || die "runtime compose.yml not found at $root/compose.yml"
-  [ -f "$root/compose.override.yml" ] || die "runtime compose.override.yml not found at $root/compose.override.yml; run pi-web-docker install first"
-  [ -f "$root/.env" ] || die "runtime .env not found at $root/.env; run pi-web-docker install first"
+  [ -f "$root/compose.yml" ] || die_missing_runtime_asset "$root" "$root/compose.yml"
+  [ -f "$root/compose.override.yml" ] || die_missing_runtime_asset "$root" "$root/compose.override.yml"
+  [ -f "$root/.env" ] || die_missing_runtime_asset "$root" "$root/.env"
 }
 
 runtime_compose() {
