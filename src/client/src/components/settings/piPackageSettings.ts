@@ -1,4 +1,5 @@
-import type { Machine, MachineKind, PiPackageInfo, PiPackageMutationAction } from "../../api";
+import type { Machine, MachineKind, MachineRuntime, PiPackageInfo, PiPackageMutationAction } from "../../api";
+import { PI_WEB_CAPABILITIES, supportsPiWebCapability } from "../../../../shared/capabilities";
 
 export type PiPackageOperationKind = PiPackageMutationAction | "update-all";
 
@@ -13,6 +14,13 @@ export interface PiPackageTargetContext {
   kind: MachineKind;
 }
 
+export type PiPackageManagementSupportState = "supported" | "unsupported" | "unknown";
+
+export interface PiPackageManagementSupport {
+  state: PiPackageManagementSupportState;
+  message?: string;
+}
+
 export function piPackageTargetContext(machine: Pick<Machine, "id" | "name" | "kind"> | undefined): PiPackageTargetContext {
   if (machine !== undefined) return { id: machine.id, name: machine.name, kind: machine.kind };
   return { id: "local", name: "local", kind: "local" };
@@ -20,6 +28,25 @@ export function piPackageTargetContext(machine: Pick<Machine, "id" | "name" | "k
 
 export function piPackageTargetLabel(target: PiPackageTargetContext): string {
   return target.kind === "local" ? `${target.name} (local gateway)` : `${target.name} (remote machine)`;
+}
+
+export function piPackageManagementSupport(target: PiPackageTargetContext, runtime: Pick<MachineRuntime, "ok" | "capabilities"> | undefined): PiPackageManagementSupport {
+  if (target.kind === "local") return { state: "supported" };
+  if (runtime?.ok !== true) return { state: "unknown" };
+  if (supportsPiWebCapability(runtime, PI_WEB_CAPABILITIES.piPackagesManage)) return { state: "supported" };
+  return { state: "unsupported", message: piPackageManagementUnavailableMessage(target) };
+}
+
+export function piPackageManagementSupportKey(support: PiPackageManagementSupport): string {
+  return `${support.state}:${support.message ?? ""}`;
+}
+
+export function isPiPackageManagementUnsupported(support: PiPackageManagementSupport | undefined): support is PiPackageManagementSupport & { state: "unsupported" } {
+  return support?.state === "unsupported";
+}
+
+export function piPackageManagementUnavailableMessage(target: PiPackageTargetContext): string {
+  return `Pi package management is not available on ${target.name}. Update and restart Pi-Web on that machine, then try again.`;
 }
 
 export function shouldRefreshGatewayPluginsAfterPiPackageMutation(target: PiPackageTargetContext): boolean {
@@ -83,7 +110,7 @@ export function friendlyPiPackageErrorMessage(message: string, target: PiPackage
   const normalized = message.trim();
   if (target.kind !== "remote") return normalized;
   if (isUnsupportedRemotePiPackageRouteMessage(normalized)) {
-    return `Pi package management is not available on ${target.name}. Update and restart Pi-Web on that machine, then try again.`;
+    return piPackageManagementUnavailableMessage(target);
   }
   if (normalized === "Remote machine timeout") {
     return `Timed out while contacting ${target.name} for Pi package management. The package operation may still be running remotely; reload the package list before retrying.`;

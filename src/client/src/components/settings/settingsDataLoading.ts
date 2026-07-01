@@ -1,5 +1,5 @@
 import type { PiPackagesResponse, PiWebConfigResponse, PiWebPluginsResponse } from "../../api";
-import { friendlyPiPackageErrorMessage, piPackageTargetLabel, type PiPackageTargetContext } from "./piPackageSettings";
+import { friendlyPiPackageErrorMessage, isPiPackageManagementUnsupported, piPackageTargetLabel, type PiPackageManagementSupport, type PiPackageTargetContext } from "./piPackageSettings";
 
 export interface GatewaySettingsLoaders {
   loadConfig: () => Promise<PiWebConfigResponse>;
@@ -15,6 +15,7 @@ export interface GatewaySettingsLoadResult {
 export interface PiPackagesLoadResult {
   packagesResponse?: PiPackagesResponse;
   error: string;
+  skipped?: boolean;
 }
 
 export async function loadGatewaySettingsData(loaders: GatewaySettingsLoaders): Promise<GatewaySettingsLoadResult> {
@@ -32,7 +33,11 @@ export async function loadGatewaySettingsData(loaders: GatewaySettingsLoaders): 
   return result;
 }
 
-export async function loadPiPackagesData(target: PiPackageTargetContext, loadPackages: (targetId: string) => Promise<PiPackagesResponse>): Promise<PiPackagesLoadResult> {
+export async function loadPiPackagesData(target: PiPackageTargetContext, loadPackages: (targetId: string) => Promise<PiPackagesResponse>, support?: PiPackageManagementSupport): Promise<PiPackagesLoadResult> {
+  if (isPiPackageManagementUnsupported(support)) {
+    return { error: support.message ?? `Pi package management is not available on ${piPackageTargetLabel(target)}.`, skipped: true };
+  }
+
   try {
     return { packagesResponse: await loadPackages(target.id), error: "" };
   } catch (error) {

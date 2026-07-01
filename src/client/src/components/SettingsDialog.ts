@@ -1,14 +1,14 @@
 import { css, html, LitElement, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { AppAction } from "../actions";
-import { configApi, piPackagesApi, pluginsApi, type Machine, type PiPackageMutationResponse, type PiPackageScope, type PiPackagesResponse, type PiWebConfigResponse, type PiWebConfigValues, type PiWebPluginsResponse } from "../api";
+import { configApi, piPackagesApi, pluginsApi, type Machine, type MachineRuntime, type PiPackageMutationResponse, type PiPackageScope, type PiPackagesResponse, type PiWebConfigResponse, type PiWebConfigValues, type PiWebPluginsResponse } from "../api";
 import type { SettingsSection } from "../settingsRoute";
 import "./settings/SettingsGeneralPanel";
 import "./settings/SettingsSessiondPanel";
 import "./settings/SettingsPackagesPanel";
 import "./settings/SettingsPluginsPanel";
 import "./settings/SettingsShortcutsPanel";
-import { friendlyPiPackageErrorMessage, piPackageMutationFollowUpMessage, piPackageTargetContext, piPackageTargetLabel, shouldRefreshGatewayPluginsAfterPiPackageMutation, type PiPackageOperationState, type PiPackageTargetContext } from "./settings/piPackageSettings";
+import { friendlyPiPackageErrorMessage, isPiPackageManagementUnsupported, piPackageManagementSupport, piPackageManagementSupportKey, piPackageMutationFollowUpMessage, piPackageTargetContext, piPackageTargetLabel, shouldRefreshGatewayPluginsAfterPiPackageMutation, type PiPackageManagementSupport, type PiPackageOperationState, type PiPackageTargetContext } from "./settings/piPackageSettings";
 import { loadGatewaySettingsData, loadPiPackagesData } from "./settings/settingsDataLoading";
 
 @customElement("settings-dialog")
@@ -16,6 +16,7 @@ export class SettingsDialog extends LitElement {
   @property({ attribute: false }) section: SettingsSection = "general";
   @property({ attribute: false }) actions: AppAction[] = [];
   @property({ attribute: false }) machine: Machine | undefined;
+  @property({ attribute: false }) machineRuntime: MachineRuntime | undefined;
   @property({ attribute: false }) onNavigate?: (section: SettingsSection) => void;
   @property({ attribute: false }) onClose?: () => void;
   @property({ attribute: false }) onConfigSaved?: (config: PiWebConfigValues) => void;
@@ -48,10 +49,18 @@ export class SettingsDialog extends LitElement {
   }
 
   protected override updated(changed: PropertyValues<this>): void {
-    if (!changed.has("machine")) return;
-    const previousTarget = piPackageTargetContext(changed.get("machine"));
     const currentTarget = this.packageTarget();
-    if (previousTarget.id === currentTarget.id) return;
+    if (changed.has("machine")) {
+      const previousTarget = piPackageTargetContext(changed.get("machine"));
+      if (previousTarget.id !== currentTarget.id) {
+        this.resetPackageStateForTargetChange();
+        if (this.isConnected) void this.loadPackagesForTarget(currentTarget);
+        return;
+      }
+    }
+
+    if (!changed.has("machineRuntime")) return;
+    if (!this.packageManagementSupportNeedsReload(changed.get("machineRuntime"), currentTarget)) return;
     this.resetPackageStateForTargetChange();
     if (this.isConnected) void this.loadPackagesForTarget(currentTarget);
   }
@@ -118,6 +127,7 @@ export class SettingsDialog extends LitElement {
         <settings-packages-panel
           .packagesResponse=${this.packagesResponse}
           .targetMachine=${this.packageTarget()}
+          .managementSupport=${this.packageManagementSupport()}
           .loading=${this.packageLoading}
           .operation=${this.packageOperation}
           .error=${this.packageError}
@@ -211,7 +221,7 @@ export class SettingsDialog extends LitElement {
     this.packageError = "";
     this.packageMessage = "";
     try {
-      const result = await loadPiPackagesData(target, (targetId) => piPackagesApi.packages(targetId));
+      const result = await loadPiPackagesData(target, (targetId) => piPackagesApi.packages(targetId), this.packageManagementSupport(target));
       if (!this.isCurrentPackageLoad(requestSeq, target)) return;
 
       this.packagesResponse = result.packagesResponse;
@@ -269,6 +279,11 @@ export class SettingsDialog extends LitElement {
   }
 
   private async runPiPackageMutation(operation: PiPackageOperationState, label: string, target: PiPackageTargetContext, mutate: () => Promise<PiPackageMutationResponse>): Promise<void> {
+    const support = this.packageManagementSupport(target);
+    if (isPiPackageManagementUnsupported(support)) {
+      this.packageError = support.message ?? `Pi package management is not available on ${piPackageTargetLabel(target)}.`;
+      throw new Error(this.packageError);
+    }
     if (this.saving) throw new Error("A settings operation is already running.");
     const requestSeq = ++this.packageMutationSeq;
     this.packageLoadRequestSeq += 1;
@@ -307,6 +322,17 @@ export class SettingsDialog extends LitElement {
 
   private packageTarget(): PiPackageTargetContext {
     return piPackageTargetContext(this.machine);
+  }
+
+  private packageManagementSupport(target = this.packageTarget()): PiPackageManagementSupport {
+    return piPackageManagementSupport(target, this.machineRuntime);
+  }
+
+  private packageManagementSupportNeedsReload(previousRuntime: MachineRuntime | undefined, target: PiPackageTargetContext): boolean {
+    const previousSupport = piPackageManagementSupport(target, previousRuntime);
+    const currentSupport = this.packageManagementSupport(target);
+    if (piPackageManagementSupportKey(previousSupport) === piPackageManagementSupportKey(currentSupport)) return false;
+    return previousSupport.state === "unsupported" || currentSupport.state === "unsupported";
   }
 
   private isCurrentLoad(requestSeq: number): boolean {
