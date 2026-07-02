@@ -1,6 +1,8 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import { AuthStorage, ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import type { GlobalSessionEvent, SessionUiEvent } from "../../shared/apiTypes.js";
@@ -125,6 +127,7 @@ function fakeRuntime(sessionId = "session-1", patch: Partial<TestSession> = {}) 
     setSessionName: (name: string) => { session.sessionName = name; },
     compact: () => Promise.resolve({ summary: "", tokensBefore: 0 }),
     getUserMessagesForForking: () => [],
+    agent: { streamFn: () => { throw new Error("streamFn should not be called in this test"); } },
     ...patch,
   };
   const runtime: PiSessionRuntime = {
@@ -166,6 +169,23 @@ function emptyArchiveStore(): NonNullable<PiSessionServiceDependencies["archiveS
 }
 
 describe("PiSessionService", () => {
+  it("exposes the session's agent.streamFn for one-off model calls", async () => {
+    const hub = new CapturingSessionEventHub();
+    const streamFn = vi.fn();
+    const fake = fakeRuntime("stream-session", { agent: { streamFn } });
+    const service = new PiSessionService(hub, {
+      createAgentRuntime: runtimeCreator(fake.runtime),
+      sessionManager: sessionGateway([]),
+      heartbeatIntervalMs: 60_000,
+    });
+
+    await service.start("/workspace");
+
+    expect(fake.session.agent.streamFn).toBe(streamFn);
+
+    await service.dispose();
+  });
+
   it("starts sessions through an injected runtime creator", async () => {
     const hub = new CapturingSessionEventHub();
     const fake = fakeRuntime();
@@ -917,6 +937,42 @@ describe("PiSessionService", () => {
     await expect(service.prompt("prompt-session", undefined)).rejects.toThrow("Prompt text is required");
 
     expect(fake.calls.prompt).toEqual([]);
+    await service.dispose();
+  });
+
+  it("generates a session name for the first prompt via the session's agent.streamFn", async () => {
+    const model = testModel();
+    const streamCalls: unknown[] = [];
+    const streamFn: StreamFn = (streamModel, context, options) => {
+      streamCalls.push({ streamModel, context, options });
+      const stream = createAssistantMessageEventStream();
+      const message: AssistantMessage = {
+        role: "assistant",
+        content: [{ type: "text", text: "Fix login bug" }],
+        api: "anthropic-messages",
+        provider: "anthropic",
+        model: model.id,
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: "stop",
+        timestamp: Date.now(),
+      };
+      stream.push({ type: "done", reason: "stop", message });
+      stream.end(message);
+      return stream;
+    };
+    const hub = new CapturingSessionEventHub();
+    const fake = fakeRuntime("name-session", { model, agent: { streamFn } });
+    const service = new PiSessionService(hub, {
+      createAgentRuntime: runtimeCreator(fake.runtime),
+      sessionManager: sessionGateway([sessionRecord("name-session")]),
+      heartbeatIntervalMs: 60_000,
+    });
+
+    await service.prompt(sessionRef("name-session"), "Please fix the login bug");
+    await vi.waitFor(() => { expect(fake.session.sessionName).toBe("Fix login bug"); });
+
+    expect(streamCalls).toHaveLength(1);
+    expect(hub.sessionEvents.some(({ event }) => event.type === "session.name" && event.name === "Fix login bug")).toBe(true);
     await service.dispose();
   });
 

@@ -1,5 +1,6 @@
 import { open, readFile, writeFile } from "node:fs/promises";
 import type { ImageContent } from "@earendil-works/pi-ai";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
 import {
   AuthStorage,
   createAgentSessionFromServices,
@@ -232,6 +233,15 @@ export interface PiAgentSession {
   setThinkingLevel(level: ClientThinkingLevel): void;
   cycleThinkingLevel(): ClientThinkingLevel | undefined;
   setSessionName(name: string): void;
+  /**
+   * Narrow re-expression of `AgentSession.agent` (an `@earendil-works/pi-agent-core`
+   * `Agent`), exposing only `streamFn` — the resolved-auth/headers/retry "call this
+   * model" function pi's own compaction/branch-summarization code uses internally.
+   * Lets callers (e.g. session title generation) issue one-off model calls without
+   * depending on pi-ai's deprecated `/compat` provider registry or leaking the full
+   * `Agent`/`AgentSession` surface.
+   */
+  agent: { streamFn: StreamFn };
 }
 
 export interface PiSessionRuntime {
@@ -1697,7 +1707,7 @@ export class PiSessionService {
     const model = session.model;
     if (model === undefined) return;
 
-    void generateShortSessionName(this.modelRegistry, model, firstMessage).then((name) => {
+    void generateShortSessionName(session.agent.streamFn, model, firstMessage).then((name) => {
       this.applyGeneratedSessionName(session, name ?? fallbackSessionName(firstMessage));
     }).catch(() => {
       this.applyGeneratedSessionName(session, fallbackSessionName(firstMessage));
