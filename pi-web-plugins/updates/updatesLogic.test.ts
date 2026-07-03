@@ -233,9 +233,11 @@ describe("fallbackDockerStatus", () => {
     const fallback = fallbackDockerStatus({ dockerMode: "dev" }, "generated");
     expect(fallback?.generatedAt).toBe("generated");
     expect(fallback?.components.web.installation).toEqual({ kind: "docker", dockerMode: "dev" });
-    expect(fallback?.commands).toMatchObject({
+    expect(fallback?.commands).toEqual({
       update: "pi-web-docker --dev update",
       restart: "pi-web-docker --dev restart",
+      restartWeb: "pi-web-docker --dev restart-web",
+      restartSessiond: "pi-web-docker --dev restart-sessiond",
       status: "pi-web-docker --dev status",
     });
     expect(fallback?.messages[0]?.id).toBe("docker-status-compatibility");
