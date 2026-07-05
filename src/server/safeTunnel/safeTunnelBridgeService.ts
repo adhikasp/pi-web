@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { posix, win32 } from "node:path";
+import { dirname, join, posix, win32 } from "node:path";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import type {
   SafeTunnelCommandOutput,
   SafeTunnelConfigStatus,
@@ -17,6 +18,7 @@ import type {
 } from "../../shared/apiTypes.js";
 
 const defaultConnectorCommand = "pi-web-tunnel";
+const localDevelopmentConnectorCommand = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "scripts", "pi-web-tunnel-dev.sh");
 const connectorCommandEnvVar = "PI_WEB_SAFE_TUNNEL_CONNECTOR_COMMAND";
 const connectorConfigDirectoryName = "pi-web-tunnel";
 const connectorConfigFileName = "config.json";
@@ -226,7 +228,9 @@ export class DefaultSafeTunnelBridgeService implements SafeTunnelBridgeService {
   }
 
   private connectorCommand(): string {
-    return nonEmptyString(this.dependencies.env[connectorCommandEnvVar]) ?? defaultConnectorCommand;
+    return nonEmptyString(this.dependencies.env[connectorCommandEnvVar])
+      ?? discoveredDevelopmentConnectorCommand(this.dependencies)
+      ?? defaultConnectorCommand;
   }
 
   private createLoginOperation(): SafeTunnelOperationState {
@@ -403,6 +407,11 @@ function startArgs(request: SafeTunnelStartRequest): string[] {
 
 function optionalFlag(flag: string, value: string | undefined): string[] {
   return value === undefined ? [] : [flag, value];
+}
+
+function discoveredDevelopmentConnectorCommand(dependencies: Pick<SafeTunnelBridgeDependencies, "fileExists" | "platform">): string | undefined {
+  if (dependencies.platform === "win32") return undefined;
+  return dependencies.fileExists(localDevelopmentConnectorCommand) ? localDevelopmentConnectorCommand : undefined;
 }
 
 function discoverConnectorConfigDirectory(dependencies: Pick<SafeTunnelBridgeDependencies, "env" | "homeDirectory" | "platform">): string {

@@ -18,6 +18,7 @@ const logDir = join(defaultPiWebDataDir(), "logs");
 const sessiondServiceName = "pi-web-sessiond.service";
 const webServiceName = "pi-web.service";
 const uiDevServiceName = "pi-web-ui-dev.service";
+const safeTunnelConnectorCommandEnvVar = "PI_WEB_SAFE_TUNNEL_CONNECTOR_COMMAND";
 
 type InstallMode = "production" | "dev";
 type ServiceBackendKind = "systemd" | "launchd";
@@ -353,6 +354,23 @@ function configEnvironment(options: InstallOptions, configPath: string): Record<
   return options.config === undefined ? {} : { PI_WEB_CONFIG: configPath };
 }
 
+function devServiceEnvironment(options: InstallOptions, configPath: string, root: string): Record<string, string> {
+  const environment = configEnvironment(options, configPath);
+  const configuredConnectorCommand = process.env[safeTunnelConnectorCommandEnvVar]?.trim();
+  const connectorCommand = configuredConnectorCommand === undefined || configuredConnectorCommand === ""
+    ? developmentConnectorCommand(root)
+    : configuredConnectorCommand;
+
+  return connectorCommand === undefined
+    ? environment
+    : { ...environment, [safeTunnelConnectorCommandEnvVar]: connectorCommand };
+}
+
+function developmentConnectorCommand(root: string): string | undefined {
+  const command = join(root, "scripts", "pi-web-tunnel-dev.sh");
+  return existsSync(command) ? command : undefined;
+}
+
 function serviceRefList(ids: ServiceId[]): ServiceRef[] {
   return ids.map((id) => serviceRefs[id]);
 }
@@ -430,7 +448,7 @@ function validateDevCheckout(root: string): void {
 }
 
 function devServiceDefinitions(options: InstallOptions, configPath: string, root: string): ServiceDefinition[] {
-  const environment = configEnvironment(options, configPath);
+  const environment = devServiceEnvironment(options, configPath, root);
   return [
     {
       ...serviceRefs.sessiond,

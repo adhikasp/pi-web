@@ -48,6 +48,25 @@ describe("DefaultSafeTunnelBridgeService", () => {
     expect(runner.runCalls).toEqual([{ command: "/usr/local/bin/pi-web-tunnel", args: ["status"] }]);
   });
 
+  it("uses the first-party source-tree connector wrapper when no command override is configured", async () => {
+    const defaultedService = new DefaultSafeTunnelBridgeService({
+      commandRunner: runner,
+      env: { XDG_CONFIG_HOME: tempDir },
+      fileExists: (path) => runner.fileExists(path),
+      homeDirectory: tempDir,
+      now: () => new Date("2026-07-03T00:00:01.000Z"),
+      platform: "linux",
+      processExists: (pid) => existingPids.has(pid),
+      readFile: (path) => runner.readFile(path),
+    });
+
+    const status = await defaultedService.status();
+    const expectedCommand = join(process.cwd(), "scripts", "pi-web-tunnel-dev.sh");
+
+    expect(status.connector).toEqual({ command: expectedCommand, state: "available" });
+    expect(runner.runCalls).toEqual([{ command: expectedCommand, args: ["status"] }]);
+  });
+
   it("reports registered connector config and running state without exposing the machine token", async () => {
     const configDirectory = join(tempDir, "pi-web-tunnel");
     await mkdir(configDirectory, { recursive: true });

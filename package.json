@@ -18,6 +18,7 @@
     "extensions",
     "docs/plugins.md",
     "docs/config.md",
+    "docs/safe-tunnel.md",
     "docs/assets",
     "plugin-api.d.ts",
     "plugin-api/unstable.d.ts"
