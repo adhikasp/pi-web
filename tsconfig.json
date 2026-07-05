@@ -27,8 +27,15 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@jmfederico/pi-web/plugin-api": ["./src/plugin-api.ts"],
-      "@jmfederico/pi-web/plugin-api/unstable": ["./src/plugin-api/unstable.ts"]
+      "@jmfederico/pi-web/plugin-api": [
+        "./src/plugin-api.ts"
+      ],
+      "@jmfederico/pi-web/plugin-api/unstable": [
+        "./src/plugin-api/unstable.ts"
+      ],
+      "@jmfederico/pi-web-tunnel-frp-engine": [
+        "./packages/tunnel-frp-engine/src/index.ts"
+      ]
     }
   },
   "include": [
@@ -36,6 +43,13 @@
     "vite.config.ts",
     "vitest.config.ts",
     "extensions/**/*.ts",
-    "pi-web-plugins/**/*.ts"
+    "pi-web-plugins/**/*.ts",
+    "packages/**/*.ts"
+  ],
+  "exclude": [
+    "coverage",
+    "dist",
+    "node_modules",
+    "packages/*/dist"
   ]
 }

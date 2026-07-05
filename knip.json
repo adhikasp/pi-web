@@ -6,12 +6,15 @@
     "src/plugin-api/unstable.ts",
     "extensions/pi-web.ts",
     "pi-web-plugins/**/pi-web-plugin.ts",
-    "scripts/*.mjs"
+    "scripts/*.mjs",
+    "packages/*/src/index.ts",
+    "packages/*/src/cli.ts"
   ],
   "project": [
     "src/**/*.ts",
     "extensions/**/*.ts",
-    "pi-web-plugins/**/*.ts"
+    "pi-web-plugins/**/*.ts",
+    "packages/**/*.ts"
   ],
   "ignoreExportsUsedInFile": true
 }
