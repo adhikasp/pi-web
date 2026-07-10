@@ -18,6 +18,7 @@ export class ProjectList extends LitElement implements KeyboardNavigableSection 
   @property({ type: Boolean, reflect: true }) collapsed = false;
   @property({ attribute: false }) onSelect?: (project: Project) => void;
   @property({ attribute: false }) onClose?: (project: Project) => void;
+  @property({ attribute: false }) onRename?: (project: Project, name: string) => void;
   @property({ attribute: false }) onToggleCollapsed?: () => void;
   @property({ attribute: false }) onFocusPreviousSection?: () => void | Promise<void>;
   @property({ attribute: false }) onFocusNextSection?: () => void | Promise<void>;
@@ -64,13 +65,14 @@ export class ProjectList extends LitElement implements KeyboardNavigableSection 
                 @keydown=${(event: KeyboardEvent) => { this.handleProjectKeydown(event, project); }}
               >
                 <div class="action-main">
-                  <span class="workspace-primary"><span class="workspace-primary-label">${project.name}</span></span><small>${project.path}</small>
+                  <span class="action-name">${project.name}</span>
                   ${this.renderActivity(project)}
                 </div>
                 <div class="action-menu">
                   <button class="action-menu-toggle" title="Project actions" aria-label=${`Actions for ${project.name}`} @click=${(event: MouseEvent) => { event.stopPropagation(); this.toggleMenu(project.id, event.currentTarget); }}>⋯</button>
                   ${this.openMenuProjectId === project.id ? html`
                     <div class="action-menu-panel" style=${this.menuStyle}>
+                      <button title="Rename project" @click=${() => { this.rename(project); }}>Rename</button>
                       <button title="Close project" @click=${() => { this.close(project); }}>Close</button>
                     </div>
                   ` : null}
@@ -116,6 +118,12 @@ export class ProjectList extends LitElement implements KeyboardNavigableSection 
   private close(project: Project) {
     this.openMenuProjectId = undefined;
     if (confirm(`Close ${project.name}?\n\nThis only removes it from PI WEB; it will not change the project folder.`)) this.onClose?.(project);
+  }
+
+  private rename(project: Project) {
+    this.openMenuProjectId = undefined;
+    const name = prompt("Rename project", project.name)?.trim();
+    if (name !== undefined && name !== "" && name !== project.name) this.onRename?.(project, name);
   }
 
   static override styles = listStyles;

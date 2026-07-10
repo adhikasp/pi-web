@@ -31,6 +31,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function leafNameFromPath(path: string): string {
+  const match = /[^/\\]+$/.exec(path);
+  return match ? match[0] : path;
+}
+
 export function defaultProjectStorePath(env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): string {
   return join(piWebDataDir(env, cwd), "projects.json");
 }
@@ -45,7 +50,10 @@ export class ProjectStore {
   constructor(private readonly filePath = projectStorePath()) {}
 
   async list(): Promise<Project[]> {
-    return (await this.read()).projects;
+    const data = await this.read();
+    const healed = data.projects.map((project) => (project.name === project.path ? { ...project, name: leafNameFromPath(project.path) } : project));
+    if (healed.some((project, index) => project !== data.projects[index])) await this.write({ projects: healed });
+    return healed;
   }
 
   async add(input: { name?: string; path: string }): Promise<Project> {
@@ -55,10 +63,9 @@ export class ProjectStore {
     if (existing) return existing;
 
     const trimmedName = input.name?.trim();
-    const leafName = path.split("/").filter((part) => part !== "").at(-1);
     const project: Project = {
       id: randomUUID(),
-      name: trimmedName !== undefined && trimmedName !== "" ? trimmedName : leafName ?? path,
+      name: trimmedName !== undefined && trimmedName !== "" ? trimmedName : leafNameFromPath(path),
       path,
       createdAt: new Date().toISOString(),
     };
@@ -69,6 +76,19 @@ export class ProjectStore {
 
   async get(id: string): Promise<Project | undefined> {
     return (await this.list()).find((p) => p.id === id);
+  }
+
+  async rename(id: string, name: string): Promise<Project> {
+    const trimmedName = name.trim();
+    if (trimmedName === "") throw new Error("Project name must not be empty");
+    const data = await this.read();
+    const index = data.projects.findIndex((p) => p.id === id);
+    const existing = data.projects[index];
+    if (existing === undefined) throw new Error("Project not found");
+    const project: Project = { ...existing, name: trimmedName };
+    data.projects[index] = project;
+    await this.write(data);
+    return project;
   }
 
   async remove(id: string): Promise<boolean> {

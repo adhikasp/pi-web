@@ -1,4 +1,4 @@
-export type FederatedHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+export type FederatedHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export const PI_PACKAGE_MUTATION_PROXY_TIMEOUT_MS = 5 * 60_000;
 export const SESSION_TREE_NAVIGATION_PROXY_TIMEOUT_MS = 5 * 60_000;
@@ -21,6 +21,7 @@ export const FEDERATED_HTTP_ROUTES = [
   { method: "GET", path: "/projects" },
   { method: "POST", path: "/projects" },
   { method: "DELETE", path: "/projects/:projectId" },
+  { method: "PATCH", path: "/projects/:projectId" },
   { method: "GET", path: "/project-directories" },
   { method: "GET", path: "/projects/:projectId/workspaces" },
   { method: "DELETE", path: "/projects/:projectId/workspaces/:workspaceId" },
