@@ -112,6 +112,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: true,
     port: 8505,
     strictPort: true,
     ...(config.allowedHosts === undefined ? {} : { allowedHosts: config.allowedHosts }),
