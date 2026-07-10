@@ -44,4 +44,18 @@ export class ProjectController {
       this.setState({ error: String(error) });
     }
   }
+
+  async renameProject(projectId: string, name: string) {
+    if (name.trim() === "") return;
+    try {
+      const project = await api.renameProject(projectId, name.trim(), selectedMachineId(this.getState()));
+      const state = this.getState();
+      this.setState({
+        projects: state.projects.map((p) => (p.id === projectId ? project : p)),
+        ...(state.selectedProject?.id === projectId ? { selectedProject: project } : {}),
+      });
+    } catch (error) {
+      this.setState({ error: String(error) });
+    }
+  }
 }

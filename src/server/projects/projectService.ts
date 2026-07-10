@@ -23,6 +23,10 @@ export class ProjectService {
     if (!(await this.store.remove(id))) throw new Error("Project not found");
   }
 
+  async rename(id: string, name: string): Promise<Project> {
+    return this.store.rename(id, name);
+  }
+
   async requireProject(id: string): Promise<Project> {
     const project = await this.store.get(id);
     if (!project) throw new Error("Project not found");
