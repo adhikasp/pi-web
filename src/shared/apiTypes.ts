@@ -203,6 +203,10 @@ export interface SessionInfo extends SessionRef {
   parentSessionPath?: string;
   archived?: boolean;
   archivedAt?: string;
+  /** ISO timestamp of when the session was last marked as read. */
+  lastReadAt?: string;
+  /** Message count at the time the session was last marked as read. */
+  lastReadMessageCount?: number;
 }
 
 export interface ArchiveSessionsResponse {
@@ -690,6 +694,7 @@ export type SessionUiEvent =
   | { type: "session.error"; message: string }
   | { type: "session.name"; sessionId: string; name?: string }
   | { type: "session.created"; session: SessionInfo }
+  | { type: "session.read"; sessionId: string; lastReadAt: string; lastReadMessageCount: number }
   | { type: "pi.event"; eventType: string }
   | { type: "questionnaire.show"; requestId: string; questions: QuestionnaireQuestion[] };
 
@@ -721,5 +726,5 @@ export interface AskUserQuestionResult {
   error?: string;
 }
 
-export type GlobalSessionEvent = Extract<SessionUiEvent, { type: "status.update" | "activity.update" | "session.name" | "session.created" }>;
+export type GlobalSessionEvent = Extract<SessionUiEvent, { type: "status.update" | "activity.update" | "session.name" | "session.created" | "session.read" }>;
 export type RealtimeEvent = GlobalSessionEvent | TerminalUiEvent | WorkspaceActivityUiEvent;
