@@ -158,7 +158,7 @@ export class TerminalService {
     const marker = "\r\n[continued in interactive shell]\r\n";
     record.buffer = trimReplayBuffer(record.buffer + marker);
     record.events.emit("output", marker);
-    const shell = process.env["SHELL"] ?? "/bin/bash";
+    const shell = defaultShell();
     record.pty = pty.spawn(shell, interactiveShellArgs(shell), {
       name: "xterm-256color",
       cwd: record.cwd,
@@ -191,7 +191,7 @@ export class TerminalService {
     if (options.cwd === "") throw new Error("cwd is required");
     const id = options.id ?? randomUUID();
     const createdAt = new Date().toISOString();
-    const shell = process.env["SHELL"] ?? "/bin/bash";
+    const shell = defaultShell();
     const terminal = pty.spawn(shell, options.shellArgs, {
       name: "xterm-256color",
       cwd: options.cwd,
@@ -257,6 +257,11 @@ export class TerminalService {
   private publish(event: TerminalUiEvent): void {
     this.events?.publishRealtime(event);
   }
+}
+
+function defaultShell(): string {
+  if (process.platform === "win32") return process.env["COMSPEC"] ?? "cmd.exe";
+  return process.env["SHELL"] ?? "/bin/bash";
 }
 
 function toInfo(record: TerminalRecord): TerminalInfo {
