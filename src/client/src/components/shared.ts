@@ -294,6 +294,15 @@ export const chatStyles = css`
   .msg.event-group.live > summary { border-bottom-style: solid; border-bottom-color: var(--pi-success-border); background: var(--pi-success-bg); color: var(--pi-success); }
   .msg.event-group > summary .label { margin: 0; font-size: 11px; font-weight: 400; }
   .group-body { padding: 0 12px 12px; }
+  .inline-events { margin: 0 0 10px; border: 1px dashed var(--pi-border-muted); border-radius: 8px; background: var(--pi-bg); color: var(--pi-muted); overflow: hidden; }
+  .inline-events.live { border-style: solid; border-color: var(--pi-success-border); background: var(--pi-success-bg); }
+  .inline-events > summary { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: var(--pi-dim); font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .inline-events.live > summary { color: var(--pi-success); }
+  .inline-events > summary .label { display: inline; flex: 0 0 auto; margin: 0; font-size: 11px; font-weight: 400; }
+  .inline-events > summary span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inline-events > .group-body { padding: 0 10px 10px; }
+  .inline-events .group-msg:first-child { border-top: 0; }
+  .msg.run .run-segment + .run-segment { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--pi-border-muted); }
   .chat-image { display: block; max-width: 100%; max-height: 320px; margin: 8px 0 0; border: 1px solid var(--pi-border-muted); border-radius: 8px; object-fit: contain; }
   .group-msg { max-width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 0; border-top: 1px solid var(--pi-border-muted); color: var(--pi-text); overflow: visible; }
   .group-msg.tool { color: var(--pi-warning); }
@@ -334,8 +343,9 @@ export const chatStyles = css`
   .msg:hover > .msg-header .msg-actions, .msg:focus-within > .msg-header .msg-actions, .group-msg:hover > .msg-header .msg-actions, .group-msg:focus-within > .msg-header .msg-actions { opacity: 1; }
   .label { display: block; color: var(--pi-muted); font-size: 12px; text-transform: uppercase; }
   .msg-header .label { margin: 0; }
-  .msg-meta { min-width: 0; max-width: 40%; opacity: .28; border: 0; background: transparent; color: var(--pi-dim); padding: 0; font: 11px system-ui, sans-serif; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .12s ease, max-width .12s ease; cursor: pointer; user-select: text; -webkit-user-select: text; }
-  .msg:hover > .msg-header .msg-meta, .msg:focus-within > .msg-header .msg-meta, .group-msg:hover > .msg-header .msg-meta, .group-msg:focus-within > .msg-header .msg-meta, .msg-meta:focus, .msg-meta.expanded { opacity: 1; max-width: 75%; }
+  .msg-meta { min-width: 0; opacity: .28; border: 0; background: transparent; color: var(--pi-dim); padding: 0; font: 11px system-ui, sans-serif; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .12s ease; cursor: pointer; user-select: text; -webkit-user-select: text; }
+  .msg:hover > .msg-header .msg-meta, .msg:focus-within > .msg-header .msg-meta, .group-msg:hover > .msg-header .msg-meta, .group-msg:focus-within > .msg-header .msg-meta, .msg-meta:focus, .msg-meta.expanded { opacity: 1; }
+  .msg-meta.expanded { flex: 1 1 auto; max-width: 100%; white-space: normal; overflow: visible; overflow-wrap: anywhere; text-overflow: clip; }
   .msg-meta:focus { outline: 1px solid var(--pi-border); outline-offset: 3px; border-radius: 4px; }
   @media (hover: none) {
     .msg-actions { opacity: 1; }

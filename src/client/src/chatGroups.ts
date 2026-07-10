@@ -4,6 +4,19 @@ export type ChatGroup =
   | { kind: "message"; message: ChatLine; index: number }
   | { kind: "group"; messages: ChatLine[]; startIndex: number; endIndex: number };
 
+export interface RunSegment {
+  events?: ChatLine[];
+  eventsStart?: number;
+  eventsEnd?: number;
+  message: ChatLine;
+  index: number;
+}
+
+export type RenderGroup =
+  | ChatGroup
+  | { kind: "combined"; events: ChatLine[]; eventsStart: number; eventsEnd: number; message: ChatLine; index: number }
+  | { kind: "run"; segments: RunSegment[]; index: number };
+
 export function groupChatMessages(messages: ChatLine[], indexOffset = 0): ChatGroup[] {
   const groups: ChatGroup[] = [];
   let eventMessages: ChatLine[] = [];
@@ -34,6 +47,74 @@ export function groupChatMessages(messages: ChatLine[], indexOffset = 0): ChatGr
   });
   flushEvents();
   return groups;
+}
+
+/**
+ * Folds an "events" group into the assistant message that immediately follows it, so the two
+ * render as a single bubble (collapsible events on top, visible reply below) instead of two
+ * stacked cards. A group only merges into a directly-following assistant message; a trailing
+ * events group (e.g. tool results after the final reply) is left standalone.
+ */
+export function mergeEventGroupsIntoMessages(groups: ChatGroup[]): RenderGroup[] {
+  const merged: RenderGroup[] = [];
+  for (let index = 0; index < groups.length; index++) {
+    const group = groups[index];
+    const next = groups[index + 1];
+    if (group?.kind === "group" && next?.kind === "message" && next.message.role === "assistant" && isMergeableEventGroup(group.messages)) {
+      merged.push({ kind: "combined", events: group.messages, eventsStart: group.startIndex, eventsEnd: group.endIndex, message: next.message, index: next.index });
+      index += 1;
+      continue;
+    }
+    if (group !== undefined) merged.push(group);
+  }
+  return merged;
+}
+
+function isMergeableEventGroup(messages: ChatLine[]): boolean {
+  return !messages.some((message) => message.source === "compaction" || message.source === "branch_summary");
+}
+
+type AssistantTurn = Extract<RenderGroup, { kind: "message" | "combined" }>;
+
+function isAssistantTurn(group: RenderGroup): group is AssistantTurn {
+  return group.kind === "combined" || (group.kind === "message" && group.message.role === "assistant");
+}
+
+function toRunSegment(turn: AssistantTurn): RunSegment {
+  if (turn.kind === "combined") return { events: turn.events, eventsStart: turn.eventsStart, eventsEnd: turn.eventsEnd, message: turn.message, index: turn.index };
+  return { message: turn.message, index: turn.index };
+}
+
+function segmentToTurn(segment: RunSegment): AssistantTurn {
+  if (segment.events === undefined || segment.eventsStart === undefined || segment.eventsEnd === undefined) return { kind: "message", message: segment.message, index: segment.index };
+  return { kind: "combined", events: segment.events, eventsStart: segment.eventsStart, eventsEnd: segment.eventsEnd, message: segment.message, index: segment.index };
+}
+
+/**
+ * Folds a run of back-to-back assistant turns (each already event+reply, or reply-only) into a
+ * single bubble, so a multi-step assistant response reads as one continuous card with a dashed
+ * divider between steps instead of a stack of near-identical "ASSISTANT" cards.
+ */
+export function mergeConsecutiveAssistantTurns(groups: RenderGroup[]): RenderGroup[] {
+  const merged: RenderGroup[] = [];
+  let run: RunSegment[] = [];
+  const flushRun = () => {
+    const [first, ...rest] = run;
+    if (first === undefined) return;
+    merged.push(rest.length === 0 ? segmentToTurn(first) : { kind: "run", segments: run, index: first.index });
+    run = [];
+  };
+
+  for (const group of groups) {
+    if (isAssistantTurn(group)) {
+      run.push(toRunSegment(group));
+      continue;
+    }
+    flushRun();
+    merged.push(group);
+  }
+  flushRun();
+  return merged;
 }
 
 export function summarizeChatGroup(messages: ChatLine[]): string {
