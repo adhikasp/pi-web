@@ -690,7 +690,36 @@ export type SessionUiEvent =
   | { type: "session.error"; message: string }
   | { type: "session.name"; sessionId: string; name?: string }
   | { type: "session.created"; session: SessionInfo }
-  | { type: "pi.event"; eventType: string };
+  | { type: "pi.event"; eventType: string }
+  | { type: "questionnaire.show"; requestId: string; questions: QuestionnaireQuestion[] };
+
+export interface QuestionnaireQuestion {
+  question: string;
+  header: string;
+  multiSelect: boolean;
+  options: QuestionnaireOption[];
+}
+
+export interface QuestionnaireOption {
+  label: string;
+  description: string;
+  preview?: string;
+}
+
+export interface QuestionnaireAnswer {
+  questionIndex: number;
+  question: string;
+  kind: "option" | "custom" | "chat" | "multi";
+  answer: string | null;
+  selected?: string[];
+  notes?: string;
+}
+
+export interface AskUserQuestionResult {
+  answers: QuestionnaireAnswer[];
+  cancelled: boolean;
+  error?: string;
+}
 
 export type GlobalSessionEvent = Extract<SessionUiEvent, { type: "status.update" | "activity.update" | "session.name" | "session.created" }>;
 export type RealtimeEvent = GlobalSessionEvent | TerminalUiEvent | WorkspaceActivityUiEvent;
