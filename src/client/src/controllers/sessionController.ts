@@ -1,4 +1,4 @@
-import { api as defaultApi, type CommandResult, type PromptAttachment, type QueuedSessionMessage, type SessionActivity, type SessionBulkFailure, type SessionCleanupExecuteResponse, type SessionInfo, type SessionRef, type SessionStatus, type SessionStreamSnapshot, type SessionTreeNavigateResult, type SessionTreeSummaryChoice, type Workspace } from "../api";
+import { api as defaultApi, type AskUserQuestionResult, type CommandResult, type PromptAttachment, type QueuedSessionMessage, type SessionActivity, type SessionBulkFailure, type SessionCleanupExecuteResponse, type SessionInfo, type SessionRef, type SessionStatus, type SessionStreamSnapshot, type SessionTreeNavigateResult, type SessionTreeSummaryChoice, type Workspace } from "../api";
 import type { AppState } from "../appState";
 import { forgetCachedNewSession, isCachedNewSessionInfo, markCachedNewSessionInfo, mergeCachedNewSessions, rememberCachedNewSession, stripCachedNewSessionMarker } from "../cachedNewSessions";
 import { textMessage } from "../chatMessages";
@@ -520,6 +520,41 @@ export class SessionController {
 
   closeTreeDialog(): void {
     this.setState({ treeDialog: undefined });
+  }
+
+  async respondToQuestionnaire(result: AskUserQuestionResult) {
+    const state = this.getState();
+    const session = state.selectedSession;
+    const questionnaire = state.questionnaire;
+    if (!session || !questionnaire) return;
+    this.setState({ questionnaire: undefined });
+    try {
+      await this.api.respondToQuestionnaire(
+        session,
+        questionnaire.requestId,
+        result.answers,
+        result.cancelled,
+        selectedMachineId(state),
+      );
+    } catch (error) {
+      this.setState({ error: String(error) });
+    }
+  }
+
+  dismissQuestionnaire() {
+    const state = this.getState();
+    const session = state.selectedSession;
+    const questionnaire = state.questionnaire;
+    if (!session || !questionnaire) return;
+    this.setState({ questionnaire: undefined });
+    void this.api.respondToQuestionnaire(
+      session,
+      questionnaire.requestId,
+      [],
+      true,
+      selectedMachineId(state),
+    ).catch(() => { /* ignore */ });
+  }
   }
 
   applySessionStatus(status: SessionStatus): void {
@@ -1263,6 +1298,12 @@ export class SessionController {
     // history + partial). Everything past the watermark applies exactly once,
     // so live content streams directly on top of the seeded partial.
     if (this.isStreamEventBelowWatermark(event)) return;
+
+    // Questionnaire dialog - shown as an overlay, not a chat message.
+    if (event.type === "questionnaire.show") {
+      this.setState({ questionnaire: { requestId: event.requestId, questions: event.questions } });
+      return;
+    }
 
     // Status and activity arrive once per token (the server republishes them on
     // every transcript event). Buffer them alongside high-frequency transcript

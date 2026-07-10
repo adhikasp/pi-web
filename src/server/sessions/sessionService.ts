@@ -27,6 +27,7 @@ import type {
   SessionStreamSnapshot,
 } from "../types.js";
 import type { NormalizedSessionCleanupRequest } from "./sessionCleanup.js";
+import type { AskUserQuestionResult } from "./askUserQuestionTool.js";
 
 export type SessionRouteRef = ClientSessionRef;
 export type SessionRouteLookup = string | SessionRouteRef;
@@ -69,6 +70,7 @@ export interface SessionRouteService {
   runCommand(ref: SessionRouteLookup, text: string): Promise<ClientCommandResult>;
   respondToCommand(ref: SessionRouteLookup, requestId: string, value: string): Promise<ClientCommandResult>;
   navigateTree(ref: SessionRouteLookup, request: ClientSessionTreeNavigateRequest): Promise<ClientSessionTreeNavigateResult>;
+  respondToQuestionnaire(requestId: string, result: AskUserQuestionResult): boolean;
   abort(ref: SessionRouteLookup): Promise<void>;
   stop(ref: SessionRouteLookup): void | Promise<void>;
   archive(ref: SessionRouteLookup): Promise<void>;
