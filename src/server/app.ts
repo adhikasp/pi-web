@@ -72,6 +72,14 @@ function registerLocalProjectRoutes(app: FastifyInstance, projects: ProjectServi
     }
   });
 
+  app.patch<{ Params: { projectId: string }; Body: { name: string } }>(`${prefix}/projects/:projectId`, async (request, reply) => {
+    try {
+      return await projects.rename(request.params.projectId, request.body.name);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.get<{ Querystring: { q?: string } }>(`${prefix}/project-directories`, async (request, reply) => {
     try {
       return await listDirectorySuggestions(request.query.q ?? "");

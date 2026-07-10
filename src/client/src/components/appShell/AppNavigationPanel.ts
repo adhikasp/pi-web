@@ -57,6 +57,7 @@ export class AppNavigationPanel extends LitElement {
   @property({ attribute: false }) onToggleSessions?: () => void;
   @property({ attribute: false }) onSelectProject?: (project: Project) => void | Promise<void>;
   @property({ attribute: false }) onCloseProject?: (project: Project) => void | Promise<void>;
+  @property({ attribute: false }) onRenameProject?: (project: Project, name: string) => void | Promise<void>;
   @property({ attribute: false }) onSelectWorkspace?: (workspace: Workspace) => void | Promise<void>;
   @property({ attribute: false }) onDeleteWorkspace?: (workspace: Workspace) => void | Promise<void>;
   @property({ attribute: false }) onStartSession?: () => void | Promise<void>;
@@ -139,6 +140,7 @@ export class AppNavigationPanel extends LitElement {
         .onToggleCollapsed=${() => { this.onToggleProjects?.(); }}
         .onSelect=${(project: Project) => this.onSelectProject?.(project)}
         .onClose=${(project: Project) => this.onCloseProject?.(project)}
+        .onRename=${(project: Project, name: string) => this.onRenameProject?.(project, name)}
         .onFocusPreviousSection=${() => { this.focusPreviousFrom("projects"); }}
         .onFocusNextSection=${() => { this.focusNextFrom("projects"); }}
         .onCancelKeyboardNavigation=${() => { this.cancelKeyboardNavigation(); }}

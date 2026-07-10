@@ -408,6 +408,14 @@ describe("buildApp", () => {
     expect(listResponse.statusCode).toBe(200);
     expect(listResponse.json<Project[]>()).toEqual([project]);
 
+    const renameResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/projects/${project.id}`,
+      payload: { name: "Renamed" },
+    });
+    expect(renameResponse.statusCode).toBe(200);
+    expect(renameResponse.json<Project>()).toMatchObject({ id: project.id, name: "Renamed", path: projectDir });
+
     const closeResponse = await app.inject({ method: "DELETE", url: `/api/projects/${project.id}` });
     expect(closeResponse.statusCode).toBe(200);
     expect(closeResponse.json()).toEqual({ closed: true });
