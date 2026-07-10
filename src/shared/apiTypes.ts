@@ -99,6 +99,12 @@ export interface PiWebConfigValues {
   subsessions?: boolean;
   /** Desired Pi-compatible agent profile and companion CLI (Pi by default). */
   agent?: PiWebAgentConfig;
+  /** VAPID public key for Web Push notifications (generated via `npx web-push generate-vapid-keys`). */
+  vapidPublicKey?: string;
+  /** VAPID private key for Web Push notifications. Keep secret. */
+  vapidPrivateKey?: string;
+  /** Email for VAPID contact (required by push services; shown if something goes wrong). */
+  vapidContact?: string;
 }
 
 export type PiWebPluginScope = "bundled" | "local" | "user" | "project";

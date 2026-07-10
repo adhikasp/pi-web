@@ -25,6 +25,8 @@ import { SESSIOND_RUNTIME_CAPABILITIES } from "../shared/capabilities.js";
 import { agentSessionDirEnvKeys, effectivePiWebConfig, maxUploadBytes } from "../config.js";
 import { createActiveAgentProfileDescriptor } from "../sessiond/activeAgentProfile.js";
 import { runSessionDaemonStartup } from "./sessiond/sessionDaemonStartup.js";
+import { PushService } from "./push/pushService.js";
+import { PushSubscriptionStore } from "./push/pushSubscriptionStore.js";
 
 const daemonEnvironment: NodeJS.ProcessEnv = Object.freeze({ ...process.env });
 const { config } = effectivePiWebConfig({ env: daemonEnvironment });
@@ -53,11 +55,14 @@ await runSessionDaemonStartup({
     const spawnTargets = config.spawnSessions
       ? new ProjectScopedSpawnTargetResolver({ projects: new ProjectService(new ProjectStore()), workspaces: new WorkspaceService() })
       : undefined;
+    const pushStore = new PushSubscriptionStore();
+    const pushService = new PushService(config, pushStore, { logger: app.log });
     const sessions = new PiSessionService(eventHub, {
       modelRuntime: auth.runtime,
       agentDir: activeAgentProfile.dir,
       workspaceActivity,
       logger: app.log,
+      pushNotifier: pushService,
       ...(spawnTargets === undefined ? {} : { spawnTargets }),
       subsessionsEnabled: spawnTargets !== undefined && config.subsessions,
       notificationStore,
@@ -74,7 +79,7 @@ await runSessionDaemonStartup({
       ...getPiWebRuntimeComponent("sessiond", SESSIOND_RUNTIME_CAPABILITIES),
       activeAgentProfile,
     });
-    return { eventHub, workspaceActivity, auth, sessions, terminals, unreadStore, activeAgentProfile, runtimeComponent };
+    return { eventHub, workspaceActivity, auth, sessions, terminals, unreadStore, activeAgentProfile, runtimeComponent, pushService };
   },
   registerRoutes({ eventHub, workspaceActivity, auth, sessions, terminals, runtimeComponent }) {
     registerWorkspaceActivityRoutes(app, workspaceActivity);

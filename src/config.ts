@@ -142,6 +142,9 @@ export function resolveEffectivePiWebConfig(loaded: LoadedPiWebConfig, options: 
   const allowedHosts = env["PI_WEB_ALLOWED_HOSTS"];
   const maxUpload = env["PI_WEB_MAX_UPLOAD_BYTES"];
   const agent = effectiveAgentConfig(env, loaded.config);
+  const vapidPublicKey = env["PI_WEB_VAPID_PUBLIC_KEY"] ?? loaded.config.vapidPublicKey;
+  const vapidPrivateKey = env["PI_WEB_VAPID_PRIVATE_KEY"] ?? loaded.config.vapidPrivateKey;
+  const vapidContact = env["PI_WEB_VAPID_CONTACT"] ?? loaded.config.vapidContact;
   return {
     ...loaded,
     config: {
@@ -157,6 +160,9 @@ export function resolveEffectivePiWebConfig(loaded: LoadedPiWebConfig, options: 
       // Beta capability, resolved off by default.
       subsessions: subsessionsEnabled(env, loaded.config),
       agent: { command: agent.command, dir: agent.dir },
+      ...(vapidPublicKey !== undefined && vapidPublicKey !== "" ? { vapidPublicKey } : {}),
+      ...(vapidPrivateKey !== undefined && vapidPrivateKey !== "" ? { vapidPrivateKey } : {}),
+      ...(vapidContact !== undefined && vapidContact !== "" ? { vapidContact } : {}),
     },
   };
 }
@@ -179,6 +185,9 @@ export function savePiWebConfig(config: PiWebConfig, options: LoadOptions = {}):
   delete existing["spawnSessions"];
   delete existing["subsessions"];
   delete existing["agent"];
+  delete existing["vapidPublicKey"];
+  delete existing["vapidPrivateKey"];
+  delete existing["vapidContact"];
   const merged = { ...existing, ...piWebConfigRecord(normalized) };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
@@ -205,6 +214,9 @@ function piWebConfigRecord(config: PiWebConfig): Record<string, unknown> {
     ...(config.spawnSessions !== undefined ? { spawnSessions: config.spawnSessions } : {}),
     ...(config.subsessions !== undefined ? { subsessions: config.subsessions } : {}),
     ...(config.agent !== undefined ? { agent: config.agent } : {}),
+    ...(config.vapidPublicKey !== undefined ? { vapidPublicKey: config.vapidPublicKey } : {}),
+    ...(config.vapidPrivateKey !== undefined ? { vapidPrivateKey: config.vapidPrivateKey } : {}),
+    ...(config.vapidContact !== undefined ? { vapidContact: config.vapidContact } : {}),
   };
 }
 
@@ -221,6 +233,9 @@ function parsePiWebConfig(value: Record<string, unknown>, path: string): PiWebCo
     ...(value["spawnSessions"] !== undefined ? { spawnSessions: parseSpawnSessions(value["spawnSessions"], path) } : {}),
     ...(value["subsessions"] !== undefined ? { subsessions: parseSubsessions(value["subsessions"], path) } : {}),
     ...(value["agent"] !== undefined ? { agent: parseAgentConfig(value["agent"], path) } : {}),
+    ...(value["vapidPublicKey"] !== undefined ? { vapidPublicKey: parseString(value["vapidPublicKey"], "vapidPublicKey", path) } : {}),
+    ...(value["vapidPrivateKey"] !== undefined ? { vapidPrivateKey: parseString(value["vapidPrivateKey"], "vapidPrivateKey", path) } : {}),
+    ...(value["vapidContact"] !== undefined ? { vapidContact: parseString(value["vapidContact"], "vapidContact", path) } : {}),
   };
 }
 
