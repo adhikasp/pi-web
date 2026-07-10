@@ -275,8 +275,8 @@ export const listStyles = css`
   .badge { display: inline-block; margin-left: 5px; border: 1px solid var(--pi-border); border-radius: 999px; color: var(--pi-muted); padding: 0 5px; font-size: 11px; font-weight: 400; }
   .action-activity { position: absolute; top: 5px; right: 6px; z-index: 1; display: grid; place-items: center; width: 10px; height: 10px; }
   .action-activity .activity-indicator { margin: 0; vertical-align: 0; }
-  .activity-indicator { display: inline-block; width: 7px; height: 7px; margin-right: 6px; background: var(--pi-success); animation: pulse 1s ease-in-out infinite; vertical-align: 1px; }
-  .activity-indicator.session { border-radius: 50%; background: var(--pi-success); }
+  .activity-indicator { display: inline-block; width: 7px; height: 7px; margin-right: 6px; background: var(--pi-accent); animation: pulse 1s ease-in-out infinite; vertical-align: 1px; }
+  .activity-indicator.session { border-radius: 50%; background: var(--pi-accent); }
   .activity-indicator.terminal { border-radius: 2px; background: var(--pi-accent); }
   /* Client-side sending (upload in flight); distinct from server activity, which propagates to workspace/machine rows. */
   .activity-indicator.sending { border-radius: 50%; background: var(--pi-warning); }

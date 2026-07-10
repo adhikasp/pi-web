@@ -59,6 +59,9 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
   @property({ attribute: false }) onDetachParent?: (session: SessionInfo) => void;
   @property({ attribute: false }) onReload?: (session: SessionInfo) => void;
   @property({ attribute: false }) onCleanup?: () => void;
+  @property({ type: Boolean }) recentOnly = false;
+  @property({ attribute: false }) recentSessionIds: string[] = [];
+  @property({ attribute: false }) unreadSessionIds: readonly string[] = [];
 
   @state() private openMenuSessionId: string | undefined;
   @state() private menuStyle = "";
@@ -103,10 +106,28 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
   }
 
   override render() {
-    const currentRows = sessionRowsForCurrentTree(this.sessions);
-    const currentRowIds = new Set(currentRows.map((row) => row.session.id));
-    const currentSelectableSessions = currentRows.map((row) => row.session).filter((session) => sessionSelectionScope(session) === "current");
-    const archivedRows = sessionRows(this.sessions.filter((session) => session.archived === true && !currentRowIds.has(session.id)));
+    const unreadIdSet = new Set(this.unreadSessionIds);
+    const allCurrentRows = sessionRowsForCurrentTree(this.sessions);
+    let currentRows: SessionRow[];
+    let archivedRows: SessionRow[];
+    let currentSelectableSessions: SessionInfo[];
+
+    if (this.recentOnly && this.recentSessionIds.length > 0) {
+      const recentIdSet = new Set(this.recentSessionIds);
+      const recentRows = allCurrentRows.filter((row) => recentIdSet.has(row.session.id));
+      // Preserve order from recentSessionIds.
+      const orderMap = new Map(this.recentSessionIds.map((id, index) => [id, index]));
+      recentRows.sort((a, b) => (orderMap.get(a.session.id) ?? Infinity) - (orderMap.get(b.session.id) ?? Infinity));
+      currentRows = recentRows;
+      currentSelectableSessions = [];
+      archivedRows = [];
+    } else {
+      currentRows = allCurrentRows;
+      const currentRowIds = new Set(currentRows.map((row) => row.session.id));
+      currentSelectableSessions = currentRows.map((row) => row.session).filter((session) => sessionSelectionScope(session) === "current");
+      archivedRows = sessionRows(this.sessions.filter((session) => session.archived === true && !currentRowIds.has(session.id)));
+    }
+
     const descendantCounts = unarchivedDescendantCounts(this.sessions);
     const unreadCount = unreadSessionCount(currentSelectableSessions, this.unreadSessionIds, {
       statuses: this.statuses,
@@ -120,12 +141,12 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
           <div class="list-body">
             ${this.renderCurrentSelectionToolbar(currentSelectableSessions)}
             ${this.startingCount > 0 ? this.renderStartingSession() : null}
-            ${currentRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "current"))}
+            ${currentRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "current", unreadIdSet))}
             ${archivedRows.length > 0 ? html`
               ${this.renderArchivedHeading(archivedRows.map((row) => row.session))}
               ${this.archivedExpanded ? html`
                 ${this.renderArchivedSelectionToolbar(archivedRows.map((row) => row.session))}
-                ${archivedRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "archived"))}
+                ${archivedRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "archived", unreadIdSet))}
               ` : null}
             ` : null}
           </div>
@@ -138,7 +159,7 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
     if (!this.collapsible) {
       return html`
         <h2>
-          <span class="plain-heading">Sessions</span>
+          ${headingLabel}
           ${this.renderCurrentSelectionButton(currentSessions)}
           ${this.renderUnreadCount(unreadCount)}
           ${this.renderCleanupButton()}
@@ -150,7 +171,7 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
     const selectedTitle = this.selected?.path ?? selectedSummary;
     return html`
       <h2>
-        <button class="section-toggle" aria-expanded=${String(!this.collapsed)} @click=${() => { this.onToggleCollapsed?.(); }}><span class="section-title"><span class="section-name">${this.collapsed ? "▸" : "▾"} Sessions</span>${this.collapsed ? html`<small class="section-selected" dir="auto" title=${selectedTitle}>${selectedSummary}</small>` : null}</span></button>
+        <button class="section-toggle" aria-expanded=${String(!this.collapsed)} @click=${() => { this.onToggleCollapsed?.(); }}><span class="section-title"><span class="section-name">${this.collapsed ? "▸" : "▾"} ${headingLabel}</span>${this.collapsed ? html`<small class="section-selected" dir="auto" title=${selectedTitle}>${selectedSummary}</small>` : null}</span></button>
         ${this.renderCurrentSelectionButton(currentSessions)}
         ${this.renderUnreadCount(unreadCount)}
         <small class="section-count">${sessionCount}</small>
@@ -240,7 +261,7 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
     `;
   }
 
-  private renderSession(row: SessionRow, descendantCount: number, scope: SessionSelectionScope) {
+  private renderSession(row: SessionRow, descendantCount: number, scope: SessionSelectionScope, unreadIdSet?: ReadonlySet<string>) {
     const { session } = row;
     const cappedDepth = Math.min(row.depth, 2);
     const canBulkSelect = sessionSelectionScope(session) === scope;

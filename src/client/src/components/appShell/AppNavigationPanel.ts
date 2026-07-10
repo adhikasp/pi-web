@@ -48,6 +48,9 @@ export class AppNavigationPanel extends LitElement {
   @property({ type: Boolean }) authoritativeSessionPersistence = false;
   @property({ type: String }) archivedDeleteUnavailableMessage = "Update and restart Pi-Web on this machine to delete archived sessions.";
   @property({ type: String }) cleanupUnavailableMessage = "Update and restart Pi-Web on this machine to clean up sessions.";
+  @property({ type: Boolean }) recentOnly = false;
+  @property({ attribute: false }) recentSessionIds: string[] = [];
+  @property({ attribute: false }) unreadSessionIds: readonly string[] = [];
   @property({ attribute: false }) onShowActions?: () => void;
   @property({ attribute: false }) onToggleMachines?: () => void;
   @property({ attribute: false }) onToggleProjects?: () => void;
@@ -171,6 +174,9 @@ export class AppNavigationPanel extends LitElement {
         .authoritativeSessionPersistence=${this.authoritativeSessionPersistence}
         .archivedDeleteUnavailableMessage=${this.archivedDeleteUnavailableMessage}
         .cleanupUnavailableMessage=${this.cleanupUnavailableMessage}
+        .recentOnly=${this.recentOnly}
+        .recentSessionIds=${this.recentSessionIds}
+        .unreadSessionIds=${this.unreadSessionIds}
         .collapsible=${this.collapsible}
         .collapsed=${this.sessionsCollapsed}
         .onToggleCollapsed=${() => { this.onToggleSessions?.(); }}
