@@ -1,4 +1,4 @@
-import type { AuthProviderOption, CommandOption, CommandResult, FileContentResponse, FileTreeEntry, GitDiffResponse, GitStatusResponse, Machine, MachineHealth, MachineRuntime, OAuthFlowState, PiWebStatusResponse, Project, QueuedSessionMessage, SessionActivity, SessionInfo, SessionStatus, TerminalCommandRun, Workspace, WorkspaceActivity } from "./api";
+import type { AuthProviderOption, CommandOption, CommandResult, FileContentResponse, FileTreeEntry, GitDiffResponse, GitStatusResponse, Machine, MachineHealth, MachineRuntime, OAuthFlowState, PiWebStatusResponse, Project, QuestionnaireQuestion, QueuedSessionMessage, SessionActivity, SessionInfo, SessionStatus, TerminalCommandRun, Workspace, WorkspaceActivity } from "./api";
 import type { ChatLine } from "./components/shared";
 import type { QualifiedContributionId } from "./plugins/ids";
 import type { WorkspaceUploadBatchState } from "./workspaceUploadState";
@@ -65,6 +65,12 @@ export interface AppState {
   selectedTerminalId: string | undefined;
   piWebStatus: PiWebStatusResponse | undefined;
   error: string;
+  questionnaire: QuestionnaireState | undefined;
+}
+
+export interface QuestionnaireState {
+  requestId: string;
+  questions: QuestionnaireQuestion[];
 }
 
 export type AuthDialogState =
@@ -170,5 +176,6 @@ export function initialAppState(): AppState {
     selectedTerminalId: undefined,
     piWebStatus: undefined,
     error: "",
+    questionnaire: undefined,
   };
 }

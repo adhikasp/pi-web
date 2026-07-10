@@ -39,6 +39,7 @@ import { buildTranscriptView } from "./subsessionTranscript.js";
 import { planSessionCleanup, summarizeSessionCleanupExecution, type NormalizedSessionCleanupRequest, type SessionCleanupPlan } from "./sessionCleanup.js";
 import type { SpawnTargetDecision, SpawnTargetResolver } from "./spawnTargetResolver.js";
 import type { PushService } from "../push/pushService.js";
+import { createAskUserQuestionToolDefinition, type AskUserQuestionParams, type AskUserQuestionResult } from "./askUserQuestionTool.js";
 
 /**
  * Minimal structured-logging seam, shaped like Fastify's logger so sessiond can
@@ -293,13 +294,20 @@ function createRuntimeWithOneShotInitialModel(createRuntime: PiWebCreateAgentSes
 
 type SpawnSessionFn = (input: SpawnSessionInvocation) => Promise<SpawnSessionResult>;
 
-function createDefaultRuntimeFactory(authStorage: AuthStorage, modelRegistry: ModelRegistryInstance, spawn?: SpawnSessionFn, subsessions?: SubsessionToolDeps): PiWebCreateAgentSessionRuntimeFactory {
+function createDefaultRuntimeFactory(authStorage: AuthStorage, modelRegistry: ModelRegistryInstance, spawn?: SpawnSessionFn, subsessions?: SubsessionToolDeps, askQuestion?: (sessionId: string, toolCallId: string, params: AskUserQuestionParams) => Promise<AskUserQuestionResult>): PiWebCreateAgentSessionRuntimeFactory {
   return async ({ cwd, agentDir, sessionManager, sessionStartEvent, initialModel }) => {
     const services = await createAgentSessionServices({ cwd, agentDir, authStorage, modelRegistry });
+    // Deferred sessionId – filled after createAgentSessionFromServices returns.
+    const sessionIdHolder: { value: string } = { value: "" };
     const customTools = [
       createPiWebEditToolDefinition(cwd),
       ...(spawn === undefined ? [] : [createSpawnSessionToolDefinition(cwd, { spawn })]),
       ...(subsessions === undefined ? [] : createSubsessionToolDefinitions(cwd, subsessions)),
+      ...(askQuestion === undefined ? [] : [createAskUserQuestionToolDefinition({
+        ask(toolCallId, params) {
+          return askQuestion(sessionIdHolder.value, toolCallId, params);
+        },
+      })]),
     ];
     const result = await createAgentSessionFromServices({
       services,
@@ -308,6 +316,8 @@ function createDefaultRuntimeFactory(authStorage: AuthStorage, modelRegistry: Mo
       ...(sessionStartEvent === undefined ? {} : { sessionStartEvent }),
       ...(initialModel === undefined ? {} : { model: initialModel }),
     });
+    // Deferred sessionId is now available.
+    sessionIdHolder.value = result.session.sessionManager.getSessionId();
     return { ...result, services, diagnostics: services.diagnostics };
   };
 }
@@ -389,6 +399,13 @@ export class PiSessionService {
    * child that works again (and stops again) notifies the parent each time.
    */
   private readonly subsessionNotifyArmed = new Map<string, boolean>();
+  /** Pending questionnaire requests keyed by requestId. */
+  private readonly pendingQuestionnaires = new Map<string, {
+    sessionId: string;
+    resolve: (result: AskUserQuestionResult) => void;
+    reject: (error: Error) => void;
+    timeout: NodeJS.Timeout;
+  }>();
   private readonly archiveStore: SessionArchiveRepository;
   private readonly agentDir: string;
   private readonly sessionManager: PiSessionManagerGateway;
@@ -423,6 +440,7 @@ export class PiSessionService {
         check: (parentSessionId, sessionId, parentSessionFile) => this.checkSubsession(parentSessionId, sessionId, parentSessionFile),
         read: (parentSessionId, sessionId, query, parentSessionFile) => this.readSubsession(parentSessionId, sessionId, query, parentSessionFile),
       },
+      (sessionId, toolCallId, params) => this.askUserQuestion(sessionId, toolCallId, params),
     );
     this.createAgentRuntime = deps.createAgentRuntime ?? defaultCreateAgentRuntime;
     this.workspaceActivity = deps.workspaceActivity;
@@ -645,6 +663,41 @@ export class PiSessionService {
       status: this.subsessionStatus(session),
       ...view,
     };
+  }
+
+  /**
+   * Show a questionnaire to the user via WebSocket and wait for their response.
+   * Called from the ask_user_question tool's execute function.
+   */
+  private askUserQuestion(sessionId: string, _toolCallId: string, params: AskUserQuestionParams): Promise<AskUserQuestionResult> {
+    const requestId = crypto.randomUUID();
+    return new Promise<AskUserQuestionResult>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pendingQuestionnaires.delete(requestId);
+        reject(new Error("Questionnaire timed out"));
+      }, 5 * 60 * 1000); // 5 minutes
+
+      this.pendingQuestionnaires.set(requestId, { sessionId, resolve, reject, timeout });
+      this.events.publish(sessionId, {
+        type: "questionnaire.show",
+        requestId,
+        questions: params.questions,
+      });
+    });
+  }
+
+  /**
+   * Resolve a pending questionnaire with the user's answers.
+   * Returns true if the requestId was found and resolved, false if it was
+   * already resolved or never existed.
+   */
+  respondToQuestionnaire(requestId: string, result: AskUserQuestionResult): boolean {
+    const pending = this.pendingQuestionnaires.get(requestId);
+    if (pending === undefined) return false;
+    this.pendingQuestionnaires.delete(requestId);
+    clearTimeout(pending.timeout);
+    pending.resolve(result);
+    return true;
   }
 
   /** Open a session after verifying it is one of the caller's tracked children. */

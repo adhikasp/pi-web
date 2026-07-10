@@ -3,6 +3,7 @@ import type { SessionBulkMutationRequest, SessionBulkMutationRef, SessionCleanup
 import { normalizeRequestCwd } from "../workingDirectory.js";
 import type { SessionEventHub } from "../realtime/sessionEventHub.js";
 import type { PiSessionRef, PiSessionService } from "./piSessionService.js";
+import type { AskUserQuestionResult } from "./askUserQuestionTool.js";
 import { normalizeSessionCleanupRequest } from "./sessionCleanup.js";
 
 type SessionLookup = string | PiSessionRef;
@@ -206,6 +207,23 @@ export function registerSessionRoutes(app: FastifyInstance, sessions: PiSessionS
     try {
       const body = optionalRecord(request.body);
       return await sessions.respondToCommand(sessionLookupFromBody(request.params.sessionId, body), requireString(body, "requestId"), requireString(body, "value"));
+    } catch (error) {
+      return reply.code(mutationErrorStatus(error)).send({ error: errorMessage(error) });
+    }
+  });
+
+  app.post<{ Params: { sessionId: string }; Body: { requestId?: unknown; answers?: unknown; cancelled?: unknown } | undefined }>(`${prefix}/sessions/:sessionId/questionnaire/respond`, async (request, reply) => {
+    try {
+      const body = optionalRecord(request.body);
+      const requestId = requireString(body, "requestId");
+      const result: AskUserQuestionResult = {
+        answers: Array.isArray(body["answers"]) ? body["answers"] as AskUserQuestionResult["answers"] : [],
+        cancelled: body["cancelled"] === true,
+      };
+      if (!sessions.respondToQuestionnaire(requestId, result)) {
+        return reply.code(404).send({ error: "Questionnaire request not found or already resolved" });
+      }
+      return { ok: true };
     } catch (error) {
       return reply.code(mutationErrorStatus(error)).send({ error: errorMessage(error) });
     }
