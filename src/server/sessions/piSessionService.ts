@@ -224,6 +224,10 @@ export interface PiSessionListEntry {
   allMessagesText: string;
   name?: string;
   parentSessionPath?: string;
+  /** ISO timestamp of when the session was last marked as read. */
+  lastReadAt?: string;
+  /** Message count at the time the session was last marked as read. */
+  lastReadMessageCount?: number;
 }
 
 interface WorkspaceArchiveCandidate extends SessionArchiveTreeCandidate {
@@ -1792,7 +1796,7 @@ export class PiSessionService implements SessionRouteService {
         if (listed !== undefined) {
           planItems.push({ input: archiveInputFromListEntry(listed) });
         } else if (active !== undefined) {
-          planItems.push({ input: archiveInputFromActiveSession(active.runtime.session) });
+          planItems.push({ input: await archiveInputFromActiveSession(active.runtime.session) });
         } else {
           failures.push({ sessionId: ref.id, error: "Session not found" });
         }
@@ -2019,6 +2023,33 @@ export class PiSessionService implements SessionRouteService {
     return this.statusFromSession(session);
   }
 
+  async markAsRead(ref: PiSessionLookup): Promise<void> {
+    const session = await this.getOrOpen(ref);
+    const sessionFile = session.sessionFile;
+    // Match the message count semantics of SessionManager.listAll (a raw scan of
+    // every "message" entry in the file) rather than session.messages.length,
+    // which is scoped to the current branch and shrinks after compaction. Using
+    // the latter would make lastReadMessageCount permanently lag the list's
+    // messageCount for any branched or compacted session, leaving it "unread"
+    // forever after a reload.
+    const entries = session.sessionManager.getEntries?.() ?? session.sessionManager.getBranch();
+    const messageCount = entries.filter((entry) => isRecord(entry) && entry["type"] === "message").length;
+    const lastReadAt = new Date().toISOString();
+    const lastReadMessageCount = messageCount;
+
+    if (sessionFile !== undefined && sessionFile !== "") {
+      await writeSessionReadState(sessionFile, { lastReadAt, lastReadMessageCount });
+    }
+
+    this.events.publishGlobal({
+      type: "session.read",
+      sessionId: session.sessionId,
+      lastReadAt,
+      lastReadMessageCount,
+    });
+  }
+  }
+
   async abort(ref: PiSessionLookup): Promise<void> {
     const active = this.activeForLookup(ref);
     if (active === undefined) return;
@@ -2182,7 +2213,7 @@ export class PiSessionService implements SessionRouteService {
     if (sessionFile === undefined || sessionFile === "") throw new Error("Session is not persisted");
     const listed = (await this.sessionManager.list(cwd)).find((candidate) => candidate.id === session.sessionId);
     if (listed !== undefined) return archiveInputFromListEntry(listed);
-    return archiveInputFromActiveSession(session);
+    return await archiveInputFromActiveSession(session);
   }
 
   private async workspaceArchiveCandidates(cwd: string): Promise<WorkspaceArchiveCandidate[]> {
@@ -3178,6 +3209,8 @@ function clientSessionFromListEntry(session: PiSessionListEntry): ClientSession 
     messageCount: session.messageCount,
     firstMessage: session.firstMessage,
     ...(session.parentSessionPath === undefined ? {} : { parentSessionPath: session.parentSessionPath }),
+    ...(session.lastReadAt === undefined ? {} : { lastReadAt: session.lastReadAt }),
+    ...(session.lastReadMessageCount === undefined ? {} : { lastReadMessageCount: session.lastReadMessageCount }),
   };
 }
 
@@ -3192,13 +3225,16 @@ function archiveInputFromListEntry(session: PiSessionListEntry): ArchiveSessionI
     firstMessage: session.firstMessage,
     ...(session.name === undefined ? {} : { name: session.name }),
     ...(session.parentSessionPath === undefined ? {} : { parentSessionPath: session.parentSessionPath }),
+    ...(session.lastReadAt === undefined ? {} : { lastReadAt: session.lastReadAt }),
+    ...(session.lastReadMessageCount === undefined ? {} : { lastReadMessageCount: session.lastReadMessageCount }),
   };
 }
 
-function archiveInputFromActiveSession(session: PiAgentSession): ArchiveSessionInput {
+async function archiveInputFromActiveSession(session: PiAgentSession): Promise<ArchiveSessionInput> {
   const sessionFile = session.sessionFile;
   if (sessionFile === undefined || sessionFile === "") throw new Error("Session is not persisted");
   const parentSessionPath = session.sessionManager.getHeader?.()?.parentSession;
+  const readState = await readSessionReadState(sessionFile);
   return {
     sessionId: session.sessionId,
     cwd: session.sessionManager.getCwd(),
@@ -3209,6 +3245,7 @@ function archiveInputFromActiveSession(session: PiAgentSession): ArchiveSessionI
     firstMessage: "",
     ...(session.sessionName === undefined ? {} : { name: session.sessionName }),
     ...(parentSessionPath === undefined ? {} : { parentSessionPath }),
+    ...readState,
   };
 }
 
@@ -3251,9 +3288,9 @@ function archiveCandidateFromActiveSession(session: PiAgentSession, archived: bo
   };
 }
 
-function archiveInputFromCandidate(candidate: WorkspaceArchiveCandidate): ArchiveSessionInput {
+async function archiveInputFromCandidate(candidate: WorkspaceArchiveCandidate): Promise<ArchiveSessionInput> {
   if (candidate.listEntry !== undefined) return archiveInputFromListEntry(candidate.listEntry);
-  if (candidate.activeSession !== undefined) return archiveInputFromActiveSession(candidate.activeSession);
+  if (candidate.activeSession !== undefined) return await archiveInputFromActiveSession(candidate.activeSession);
   throw new Error(`Session is not available for archiving: ${candidate.id}`);
 }
 
@@ -3274,6 +3311,8 @@ function clientSessionFromArchivedRecord(record: ArchivedSessionRecord, fallback
   if (path === undefined || created === undefined || modified === undefined || messageCount === undefined || firstMessage === undefined) return undefined;
   const name = record.name ?? fallback?.name;
   const parentSessionPath = record.parentSessionPath ?? fallback?.parentSessionPath;
+  const lastReadAt = record.lastReadAt ?? fallback?.lastReadAt;
+  const lastReadMessageCount = record.lastReadMessageCount ?? fallback?.lastReadMessageCount;
   return {
     id: record.sessionId,
     path,
@@ -3284,6 +3323,8 @@ function clientSessionFromArchivedRecord(record: ArchivedSessionRecord, fallback
     messageCount,
     firstMessage,
     ...(parentSessionPath === undefined ? {} : { parentSessionPath }),
+    ...(lastReadAt === undefined ? {} : { lastReadAt }),
+    ...(lastReadMessageCount === undefined ? {} : { lastReadMessageCount }),
     archived: true,
     archivedAt: record.archivedAt,
   };
@@ -3531,6 +3572,66 @@ async function clearParentSession(sessionFile: string): Promise<void> {
 function clearParentSessionHeader(sessionManager: PiSessionManager): void {
   const header = sessionManager.getHeader?.();
   if (header !== undefined && header !== null) delete header.parentSession;
+}
+
+interface SessionReadState {
+  lastReadAt?: string;
+  lastReadMessageCount?: number;
+}
+
+/** Extract read-state fields from the first line of a session JSONL file. */
+export async function readSessionReadState(sessionFile: string): Promise<SessionReadState> {
+  try {
+    const content = await readFile(sessionFile, "utf8");
+    const newlineIndex = content.indexOf("\n");
+    const firstLine = newlineIndex === -1 ? content : content.slice(0, newlineIndex);
+    const header: unknown = JSON.parse(firstLine);
+    if (!isRecord(header)) return {};
+    const lastReadAt = typeof header["lastReadAt"] === "string" && header["lastReadAt"] !== "" ? header["lastReadAt"] : undefined;
+    const lastReadMessageCount = typeof header["lastReadMessageCount"] === "number" && Number.isInteger(header["lastReadMessageCount"]) && header["lastReadMessageCount"] >= 0
+      ? header["lastReadMessageCount"]
+      : undefined;
+    const result: SessionReadState = {};
+    if (lastReadAt !== undefined) result.lastReadAt = lastReadAt;
+    if (lastReadMessageCount !== undefined) result.lastReadMessageCount = lastReadMessageCount;
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/** Write read-state fields to the first line of a session JSONL file, preserving other header keys. */
+export async function writeSessionReadState(sessionFile: string, state: SessionReadState): Promise<void> {
+  try {
+    const content = await readFile(sessionFile, "utf8");
+    const newlineIndex = content.indexOf("\n");
+    const firstLine = newlineIndex === -1 ? content : content.slice(0, newlineIndex);
+    const rest = newlineIndex === -1 ? "" : content.slice(newlineIndex);
+    const header: unknown = JSON.parse(firstLine);
+    if (!isRecord(header)) return;
+    if (state.lastReadAt === undefined) {
+      delete header["lastReadAt"];
+    } else {
+      header["lastReadAt"] = state.lastReadAt;
+    }
+    if (state.lastReadMessageCount === undefined) {
+      delete header["lastReadMessageCount"];
+    } else {
+      header["lastReadMessageCount"] = state.lastReadMessageCount;
+    }
+    await writeFile(sessionFile, `${JSON.stringify(header)}${rest}`, "utf8");
+  } catch {
+    // Session file may not be persisted yet (new session); ignore.
+  }
+}
+
+/** Enrich PiSessionListEntry objects with read-state from their session file headers. */
+export async function enrichSessionsWithReadState(sessions: readonly PiSessionListEntry[]): Promise<PiSessionListEntry[]> {
+  return Promise.all(sessions.map(async (session) => {
+    const state = await readSessionReadState(session.path);
+    if (state.lastReadAt === undefined && state.lastReadMessageCount === undefined) return session;
+    return { ...session, ...state };
+  }));
 }
 
 function clearSessionQueue(session: PiAgentSession): void {

@@ -15,6 +15,10 @@ export interface ArchiveSessionInput {
   firstMessage: string;
   name?: string;
   parentSessionPath?: string;
+  /** ISO timestamp of when the session was last marked as read. */
+  lastReadAt?: string;
+  /** Message count at the time the session was last marked as read. */
+  lastReadMessageCount?: number;
 }
 
 export interface ArchivedSessionRecord {
@@ -29,6 +33,10 @@ export interface ArchivedSessionRecord {
   firstMessage?: string;
   name?: string;
   parentSessionPath?: string;
+  /** ISO timestamp of when the session was last marked as read. */
+  lastReadAt?: string;
+  /** Message count at the time the session was last marked as read. */
+  lastReadMessageCount?: number;
 }
 
 export interface SessionArchiveFile {
@@ -189,6 +197,8 @@ function archiveRecordFromInput(session: ArchiveSessionInput, archive: { archive
     firstMessage: session.firstMessage,
     ...(session.name === undefined ? {} : { name: session.name }),
     ...(session.parentSessionPath === undefined ? {} : { parentSessionPath: session.parentSessionPath }),
+    ...(session.lastReadAt === undefined ? {} : { lastReadAt: session.lastReadAt }),
+    ...(session.lastReadMessageCount === undefined ? {} : { lastReadMessageCount: session.lastReadMessageCount }),
   };
 }
 
@@ -251,6 +261,8 @@ function parseArchivedSessionRecord(value: unknown): ArchivedSessionRecord {
   const firstMessage = optionalString(value, "firstMessage");
   const name = optionalString(value, "name");
   const parentSessionPath = optionalString(value, "parentSessionPath");
+  const lastReadAt = optionalString(value, "lastReadAt");
+  const lastReadMessageCount = optionalNumber(value, "lastReadMessageCount");
   return {
     sessionId,
     cwd: canonicalCwd,
@@ -263,6 +275,8 @@ function parseArchivedSessionRecord(value: unknown): ArchivedSessionRecord {
     ...(firstMessage === undefined ? {} : { firstMessage }),
     ...(name === undefined ? {} : { name }),
     ...(parentSessionPath === undefined ? {} : { parentSessionPath }),
+    ...(lastReadAt === undefined ? {} : { lastReadAt }),
+    ...(lastReadMessageCount === undefined ? {} : { lastReadMessageCount }),
   };
 }
 

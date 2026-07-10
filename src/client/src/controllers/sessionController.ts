@@ -14,7 +14,6 @@ import { PI_WEB_CAPABILITIES, supportsPiWebCapability } from "../../../shared/ca
 import type { PromptAttachmentDelivery, SessionNotificationInboxEvent } from "../../../shared/apiTypes";
 import { InMemorySessionSelectionMemory, markSessionArchived, markSessionsArchived, selectPreferredSession, selectionAfterArchivingSession, selectionAfterArchivingSessions, shouldDeselectAfterArchivedCollapse, type SessionSelectionMemory } from "./sessionSelection";
 import { RecentSessionsStore } from "./recentSessions";
-import { UnreadTracker } from "./unreadTracker";
 import { selectedMachineId, type GetState, type SetState, type UpdateUrl } from "./types";
 import { TrailingRefreshCoordinator } from "./trailingRefreshCoordinator";
 
@@ -60,7 +59,6 @@ export interface SessionControllerDependencies {
   replacePromptEditorText?: (replacement: PromptEditorTextReplacement) => void | Promise<void>;
   onSelectedSessionReady?: (selection: SelectedSessionReady) => void;
   recentSessions?: RecentSessionsStore | undefined;
-  unreadTracker?: UnreadTracker | undefined;
 }
 
 interface BulkSessionMutationResult {
@@ -107,7 +105,6 @@ export class SessionController {
   private readonly replacePromptEditorText: SessionControllerDependencies["replacePromptEditorText"];
   private readonly onSelectedSessionReady: SessionControllerDependencies["onSelectedSessionReady"];
   private readonly recentSessions: RecentSessionsStore | undefined;
-  private readonly unreadTracker: UnreadTracker | undefined;
   private selectionSeq = 0;
   private disposed = false;
   // Join-time stream watermark for the selected session. `seq` is the
@@ -140,22 +137,18 @@ export class SessionController {
     this.replacePromptEditorText = deps.replacePromptEditorText;
     this.onSelectedSessionReady = deps.onSelectedSessionReady;
     this.recentSessions = deps.recentSessions;
-    this.unreadTracker = deps.unreadTracker;
   }
 
   applyGlobalEvent(event: GlobalSessionEvent): void {
     if (event.type === "status.update") this.queueStatusUpdate(event.status);
     else if (event.type === "activity.update") this.queueActivityUpdate(event.activity);
     else if (event.type === "session.created") this.applyCreatedSession(event.session);
+    else if (event.type === "session.read") this.applySessionRead(event.sessionId, event.lastReadAt, event.lastReadMessageCount);
     else if (event.type === "session.name") this.applySessionName(event.sessionId, event.name);
   }
 
   get recentSessionsStore(): RecentSessionsStore | undefined {
     return this.recentSessions;
-  }
-
-  get unreadTrackerStore(): UnreadTracker | undefined {
-    return this.unreadTracker;
   }
 
   dispose() {
@@ -219,7 +212,7 @@ export class SessionController {
     }
     this.sessionSelection.rememberSession({ ...session, cwd: this.workspaceSelectionKey(session.cwd) });
     this.recentSessions?.recordAccess(this.workspaceSelectionKey(session.cwd), session.id);
-    this.unreadTracker?.markAsRead(session.id, session.messageCount);
+    void this.api.markAsRead(session, selectedMachineId(this.getState())).catch(() => { /* best-effort; unread state syncs via realtime events */ });
     const seq = ++this.selectionSeq;
     this.socket.close();
     this.streamWatermark = undefined;
@@ -582,7 +575,6 @@ export class SessionController {
   private cleanupSessionTracking(sessionIds: readonly string[], cwd: string): void {
     for (const sessionId of sessionIds) {
       this.recentSessions?.removeSession(cwd, sessionId);
-      this.unreadTracker?.clearForSession(sessionId);
     }
   }
 
@@ -1317,6 +1309,18 @@ export class SessionController {
     this.setState({
       sessions: this.getState().sessions.map(rename),
       selectedSession: selectedSession === undefined ? undefined : rename(selectedSession),
+    });
+  }
+
+  private applySessionRead(sessionId: string, lastReadAt: string, lastReadMessageCount: number) {
+    const update = (session: SessionInfo) => {
+      if (session.id !== sessionId) return session;
+      return { ...session, lastReadAt, lastReadMessageCount };
+    };
+    const selectedSession = this.getState().selectedSession;
+    this.setState({
+      sessions: this.getState().sessions.map(update),
+      selectedSession: selectedSession === undefined ? undefined : update(selectedSession),
     });
   }
 

@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { canonicalizeStoredCwd, cwdPathsEqual } from "../workingDirectory.js";
 import type { PiSessionListEntry, PiSessionManager, PiSessionManagerGateway } from "./piSessionService.js";
+import { enrichSessionsWithReadState } from "./piSessionService.js";
 
 type SessionDirSource = "env" | "settings" | "pi-default";
 
@@ -98,7 +99,8 @@ export async function listSessionsInDir(sessionDir: string): Promise<PiSessionLi
   // Session file headers are written by external tools (Pi CLI, SDK consumers),
   // so their cwd is canonicalized here before it enters pi-web.
   const sessions = await SessionManager.listAll(sessionDir);
-  return sessions.map((session) => ({ ...session, cwd: canonicalizeStoredCwd(session.cwd) }));
+  const withCwd = sessions.map((session) => ({ ...session, cwd: canonicalizeStoredCwd(session.cwd) }));
+  return enrichSessionsWithReadState(withCwd);
 }
 
 export async function listSessionsInDefaultPiStore(storeRoot: string): Promise<PiSessionListEntry[]> {

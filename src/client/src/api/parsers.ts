@@ -161,6 +161,8 @@ export function parseSessionInfo(value: unknown): SessionInfo {
   const persisted = parseOptionalBoolean(record["persisted"], "persisted");
   const parentSessionPath = optionalString(record, "parentSessionPath");
   const archivedAt = optionalString(record, "archivedAt");
+  const lastReadAt = optionalString(record, "lastReadAt");
+  const lastReadMessageCount = optionalNumber(record, "lastReadMessageCount");
   return {
     id: requireString(record, "id"),
     path: requireString(record, "path"),
@@ -174,6 +176,8 @@ export function parseSessionInfo(value: unknown): SessionInfo {
     ...(parentSessionPath === undefined ? {} : { parentSessionPath }),
     ...(record["archived"] === true ? { archived: true } : {}),
     ...(archivedAt === undefined ? {} : { archivedAt }),
+    ...(lastReadAt === undefined ? {} : { lastReadAt }),
+    ...(lastReadMessageCount === undefined ? {} : { lastReadMessageCount }),
   };
 }
 

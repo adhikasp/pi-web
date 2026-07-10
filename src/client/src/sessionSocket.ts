@@ -154,7 +154,7 @@ export class RealtimeSocket {
 
 export function parseSessionSocketEvent(event: unknown): SessionUiEvent | undefined {
   const type = eventType(event);
-  if (type === "notifications.inbox") return safelyParseNotificationEvent(() => parseSessionNotificationInboxEvent(event));
+if (type === "notifications.inbox") return safelyParseNotificationEvent(() => parseSessionNotificationInboxEvent(event));
   return isLegacySessionUiEvent(event) ? event : undefined;
 }
 
@@ -170,7 +170,7 @@ function isLegacySessionUiEvent(event: unknown): event is SessionUiEvent {
 
 function isLegacyGlobalSessionEvent(event: unknown): event is BrowserGlobalSessionEvent {
   const type = eventType(event);
-  return type === "status.update" || type === "activity.update" || type === "session.name" || type === "session.created";
+  return type === "status.update" || type === "activity.update" || type === "session.name" || type === "session.created" || type === "session.read";
 }
 
 function isLegacyRealtimeEvent(event: unknown): event is NonGlobalBrowserRealtimeEvent {

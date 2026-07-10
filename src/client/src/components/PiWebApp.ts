@@ -20,7 +20,6 @@ import { WorkspaceController, canDeleteWorkspace } from "../controllers/workspac
 import { emptyMachineNavigationSnapshot, machineNavigationSnapshotFromState, routeFromMachineNavigationSnapshot, SessionStorageMachineNavigationMemory, type MachineNavigationSnapshot, type WorkspaceRouteSurface } from "../controllers/machineNavigationMemory";
 import { SessionStorageSessionSelectionMemory } from "../controllers/sessionSelection";
 import { RecentSessionsStore } from "../controllers/recentSessions";
-import { UnreadTracker } from "../controllers/unreadTracker";
 import { SessionStorageTerminalSelectionMemory } from "../controllers/terminalSelection";
 import { SessionStorageWorkspaceSelectionMemory } from "../controllers/workspaceSelection";
 import { KeyboardShortcutDispatcher } from "../keyboardShortcuts";
@@ -132,7 +131,6 @@ export class PiWebApp extends LitElement {
     { onBackgroundError: (message, error) => { console.warn(message, error); } },
   );
   private readonly recentSessions = new RecentSessionsStore();
-  private readonly unreadTracker = new UnreadTracker();
 
   private readonly sessions = new SessionController(
     () => this.state,
@@ -1377,7 +1375,7 @@ export class PiWebApp extends LitElement {
       ? this.recentSessions.getRecent(`${machineId}:${workspaceCwd}`).map((entry) => entry.sessionId)
       : [];
     const unreadSessionIds = this.state.sessions
-      .filter((s) => this.unreadTracker.hasUnread(s.id, s.messageCount))
+      .filter((s) => hasUnreadMessages(s))
       .map((s) => s.id);
 
     return html`
@@ -2411,4 +2409,10 @@ function thinkingDescription(level: string): string | undefined {
     case "xhigh": return "Maximum reasoning (~32k tokens)";
     default: return undefined; // unknown level from a newer pi: no description
   }
+}
+
+function hasUnreadMessages(session: import("../api").SessionInfo): boolean {
+  if (session.messageCount <= 0) return false;
+  if (session.lastReadMessageCount === undefined) return true;
+  return session.messageCount > session.lastReadMessageCount;
 }
