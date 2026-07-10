@@ -294,6 +294,15 @@ export const chatStyles = css`
   .msg.event-group.live > summary { border-bottom-style: solid; border-bottom-color: var(--pi-success-border); background: var(--pi-success-bg); color: var(--pi-success); }
   .msg.event-group > summary .label { margin: 0; font-size: 11px; font-weight: 400; }
   .group-body { padding: 0 12px 12px; }
+  .inline-events { margin: 0 0 10px; border: 1px dashed var(--pi-border-muted); border-radius: 8px; background: var(--pi-bg); color: var(--pi-muted); overflow: hidden; }
+  .inline-events.live { border-style: solid; border-color: var(--pi-success-border); background: var(--pi-success-bg); }
+  .inline-events > summary { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: var(--pi-dim); font-size: 12px; white-space: nowrap; overflow: hidden; }
+  .inline-events.live > summary { color: var(--pi-success); }
+  .inline-events > summary .label { display: inline; flex: 0 0 auto; margin: 0; font-size: 11px; font-weight: 400; }
+  .inline-events > summary span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inline-events > .group-body { padding: 0 10px 10px; }
+  .inline-events .group-msg:first-child { border-top: 0; }
+  .msg.run .run-segment + .run-segment { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--pi-border-muted); }
   .chat-image { display: block; max-width: 100%; max-height: 320px; margin: 8px 0 0; border: 1px solid var(--pi-border-muted); border-radius: 8px; object-fit: contain; }
   .group-msg { max-width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 0; border-top: 1px solid var(--pi-border-muted); color: var(--pi-text); overflow: visible; }
   .group-msg.tool { color: var(--pi-warning); }

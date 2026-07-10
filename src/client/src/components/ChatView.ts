@@ -2,7 +2,7 @@ import { LitElement, html } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
 import { ChatDisclosureController } from "../chatDisclosure";
-import { groupChatMessages, summarizeChatGroup, type ChatGroup } from "../chatGroups";
+import { groupChatMessages, mergeConsecutiveAssistantTurns, mergeEventGroupsIntoMessages, summarizeChatGroup, type RenderGroup, type RunSegment } from "../chatGroups";
 import { writeClipboardText } from "../clipboard";
 import { capturePrependScrollAnchor, PREPEND_RESTORE_SETTLE_FRAMES, restorePrependScrollAnchor, type PrependScrollAnchor } from "../chatScrollAnchoring";
 import { shouldRequestEarlierMessages } from "../chatHistoryLoading";
@@ -83,7 +83,7 @@ export class ChatView extends LitElement {
   private conversationRailFrame: number | undefined;
   private groupedMessagesInput?: ChatLine[];
   private groupedMessagesStart = 0;
-  private groupedMessagesCache: ChatGroup[] = [];
+  private groupedMessagesCache: RenderGroup[] = [];
   private readonly messageMetaCache = new WeakMap<ChatLine, { short: string; full: string }>();
   private readonly messageCopyTextCache = new WeakMap<ChatLine, string>();
   private partialStreamNoticeBody: string | undefined;
@@ -181,10 +181,8 @@ export class ChatView extends LitElement {
           ${this.renderHistoryBoundary()}
           ${repeat(
             groups,
-            (group) => group.kind === "message" ? this.messageAnchorKey(group.index) : this.groupRenderKey(group.startIndex),
-            (group, index) => group.kind === "message"
-              ? this.renderMessage(group.message, group.index)
-              : this.renderMessageGroup(group.messages, group.startIndex, group.endIndex, this.isLiveTailGroup(groups, index)),
+            (group) => this.renderGroupKey(group),
+            (group, index) => this.renderGroup(group, index, groups),
           )}
           ${this.renderQueuedMessages()}
           ${this.renderSessionActivity()}
@@ -194,15 +192,29 @@ export class ChatView extends LitElement {
     `;
   }
 
-  private groupedMessages(): ChatGroup[] {
+  private groupedMessages(): RenderGroup[] {
     if (this.groupedMessagesInput === this.messages && this.groupedMessagesStart === this.messageStart) return this.groupedMessagesCache;
     this.groupedMessagesInput = this.messages;
     this.groupedMessagesStart = this.messageStart;
-    this.groupedMessagesCache = groupChatMessages(this.messages, this.messageStart);
+    this.groupedMessagesCache = mergeConsecutiveAssistantTurns(mergeEventGroupsIntoMessages(groupChatMessages(this.messages, this.messageStart)));
     return this.groupedMessagesCache;
   }
 
-  private isLiveTailGroup(groups: ChatGroup[], index: number): boolean {
+  private renderGroupKey(group: RenderGroup): string {
+    if (group.kind === "message") return this.messageAnchorKey(group.index);
+    if (group.kind === "combined") return this.combinedRenderKey(group.eventsStart, group.index);
+    if (group.kind === "run") return this.runRenderKey(group.index);
+    return this.groupRenderKey(group.startIndex);
+  }
+
+  private renderGroup(group: RenderGroup, index: number, groups: RenderGroup[]) {
+    if (group.kind === "message") return this.renderMessage(group.message, group.index);
+    if (group.kind === "combined") return this.renderCombinedGroup(group.events, group.eventsStart, group.eventsEnd, group.message, group.index, this.isLiveTailGroup(groups, index));
+    if (group.kind === "run") return this.renderRunGroup(group.segments, group.index, this.isLiveTailGroup(groups, index));
+    return this.renderMessageGroup(group.messages, group.startIndex, group.endIndex, this.isLiveTailGroup(groups, index));
+  }
+
+  private isLiveTailGroup(groups: RenderGroup[], index: number): boolean {
     return index === groups.length - 1 && this.isSessionLive();
   }
 
@@ -385,6 +397,62 @@ export class ChatView extends LitElement {
     `;
   }
 
+  private renderCombinedGroup(events: ChatLine[], eventsStart: number, eventsEnd: number, message: ChatLine, index: number, defaultOpen: boolean) {
+    return html`
+      ${this.renderScrollMarker(this.groupScrollMarkerId(eventsEnd))}
+      <article class="msg assistant" data-index=${index} data-scroll-anchor-id=${this.messageAnchorKey(index)}>
+        ${this.renderMessageHeader(message, String(index))}
+        ${this.renderInlineEvents(events, eventsStart, eventsEnd, defaultOpen)}
+        ${message.parts.map((part) => this.renderPart(part, message))}
+      </article>
+    `;
+  }
+
+  private renderRunGroup(segments: RunSegment[], index: number, isLiveTail: boolean) {
+    const first = segments[0];
+    const lastIndex = segments.length - 1;
+    return html`
+      ${this.renderScrollMarker(this.messageScrollMarkerId(index))}
+      <article class="msg assistant run" data-index=${index} data-scroll-anchor-id=${this.messageAnchorKey(index)}>
+        ${first === undefined ? null : this.renderMessageHeader(first.message, String(index))}
+        ${segments.map((segment, offset) => this.renderRunSegment(segment, offset === lastIndex && isLiveTail))}
+      </article>
+    `;
+  }
+
+  private renderRunSegment(segment: RunSegment, isLiveTail: boolean) {
+    return html`
+      <div class="run-segment">
+        ${segment.events === undefined || segment.eventsStart === undefined || segment.eventsEnd === undefined ? null : this.renderInlineEvents(segment.events, segment.eventsStart, segment.eventsEnd, isLiveTail)}
+        ${segment.message.parts.map((part) => this.renderPart(part, segment.message))}
+      </div>
+    `;
+  }
+
+  private renderInlineEvents(events: ChatLine[], eventsStart: number, eventsEnd: number, defaultOpen: boolean) {
+    const disclosureKey = this.groupDisclosureKey(eventsStart, eventsEnd, defaultOpen);
+    const open = this.disclosures.isOpen(disclosureKey, defaultOpen);
+    return html`
+      <details class=${defaultOpen ? "inline-events live" : "inline-events"} data-scroll-anchor-id=${this.groupAnchorKey(eventsStart)} ?open=${open} @toggle=${(event: Event) => { this.onGroupToggle(disclosureKey, event, defaultOpen); }}>
+        <summary>
+          <b class="label">${defaultOpen ? "live events" : "events"}</b>
+          <span>${summarizeChatGroup(events)}</span>
+        </summary>
+        <div class="group-body">
+          ${events.map((eventMessage, offset) => {
+            const toolOnly = this.isToolExecutionOnlyMessage(eventMessage);
+            return html`
+              <section class=${toolOnly ? "group-msg tool-execution-shell" : `group-msg ${eventMessage.role}`} data-index=${eventsStart + offset} data-scroll-anchor-id=${this.eventAnchorKey(eventsStart + offset)}>
+                ${toolOnly ? null : this.renderMessageHeader(eventMessage, `${String(eventsStart)}:${String(offset)}`)}
+                ${eventMessage.parts.map((part) => this.renderPart(part, eventMessage))}
+              </section>
+            `;
+          })}
+        </div>
+      </details>
+    `;
+  }
+
   private renderScrollMarker(markerId: string) {
     return html`<span class="scroll-marker" data-marker-id=${markerId} aria-hidden="true"></span>`;
   }
@@ -459,7 +527,7 @@ export class ChatView extends LitElement {
       return empty;
     }
     const time = timestamp === undefined ? undefined : this.formatTimestamp(timestamp);
-    const parts = [time?.short, model].filter((part): part is string => part !== undefined && part !== "");
+    const parts = [time?.short, model === undefined ? undefined : this.lastPathSegment(model)].filter((part): part is string => part !== undefined && part !== "");
     const fullParts = [time?.full, model === undefined ? undefined : `Model: ${model}`].filter((part): part is string => part !== undefined && part !== "");
     const label = { short: parts.join(" · "), full: fullParts.join(" · ") };
     this.messageMetaCache.set(message, label);
@@ -478,6 +546,11 @@ export class ChatView extends LitElement {
     const id = model.responseId ?? model.id;
     if (id === undefined || id === "") return model.provider;
     return model.provider !== undefined && model.provider !== "" ? `${model.provider}/${id}` : id;
+  }
+
+  private lastPathSegment(value: string): string {
+    const lastSlash = value.lastIndexOf("/");
+    return lastSlash === -1 ? value : value.slice(lastSlash + 1);
   }
 
   private renderPart(part: ChatPart, message?: ChatLine) {
@@ -803,6 +876,14 @@ export class ChatView extends LitElement {
 
   private groupRenderKey(startIndex: number): string {
     return `g:${String(startIndex)}`;
+  }
+
+  private combinedRenderKey(eventsStart: number, messageIndex: number): string {
+    return `c:${String(eventsStart)}:${String(messageIndex)}`;
+  }
+
+  private runRenderKey(firstIndex: number): string {
+    return `r:${String(firstIndex)}`;
   }
 
   private groupAnchorKey(startIndex: number): string {
