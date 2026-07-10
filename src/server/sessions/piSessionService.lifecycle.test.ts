@@ -1063,6 +1063,7 @@ describe("PiSessionService lifecycle, listing, and reload", () => {
         url: "/",
         sessionId: "push-session",
         machineId: "local",
+        cwd: "/workspace",
       });
       await service.dispose();
     });

@@ -2947,6 +2947,7 @@ export class PiSessionService implements SessionRouteService {
       url: "/",
       sessionId: session.sessionId,
       machineId: "local",
+      cwd: session.sessionManager.getCwd(),
     });
   }
 
