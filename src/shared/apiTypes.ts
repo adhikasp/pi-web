@@ -94,6 +94,12 @@ export interface PiWebConfigValues {
   vapidPrivateKey?: string;
   /** Email for VAPID contact (required by push services; shown if something goes wrong). */
   vapidContact?: string;
+  /**
+   * Public URL where PI WEB is reachable (e.g. "https://pi.example.ts.net").
+   * Used by push notifications to construct absolute links instead of relative
+   * ones that resolve to localhost when the subscription was created locally.
+   */
+  publicUrl?: string;
 }
 
 export type PiWebPluginScope = "bundled" | "local" | "user" | "project";

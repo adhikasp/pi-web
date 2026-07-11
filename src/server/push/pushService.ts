@@ -22,6 +22,9 @@ export interface PushNotificationPayload {
   sessionId: string;
   machineId: string;
   cwd?: string;
+  /** Public URL to use as the base for notification click links, so they
+   *  resolve to the user-visible hostname instead of localhost. */
+  publicUrl?: string;
 }
 
 export interface PushServiceLogger {
@@ -45,11 +48,13 @@ export class PushService {
   private readonly webPush: Pick<typeof webPush, "setVapidDetails" | "sendNotification">;
   private readonly logger: PushServiceLogger;
   private readonly vapid: VapidDetails | undefined;
+  private readonly publicUrl: string | undefined;
 
   constructor(config: PiWebConfig, private readonly store: Pick<PushSubscriptionStore, "list" | "remove">, deps: PushServiceDependencies = {}) {
     this.webPush = deps.webPush ?? webPush;
     this.logger = deps.logger ?? noopLogger;
     this.vapid = vapidDetailsFromConfig(config);
+    this.publicUrl = config.publicUrl;
     if (this.vapid !== undefined) this.webPush.setVapidDetails(this.vapid.contact, this.vapid.publicKey, this.vapid.privateKey);
   }
 
@@ -63,8 +68,11 @@ export class PushService {
 
   async send(payload: PushNotificationPayload): Promise<void> {
     if (!this.isEnabled()) return;
+    const decorated = this.publicUrl !== undefined && this.publicUrl !== "" && payload.publicUrl === undefined
+      ? { ...payload, publicUrl: this.publicUrl }
+      : payload;
     const subscriptions = await this.store.list();
-    await Promise.all(subscriptions.map((subscription) => this.sendToSubscription(subscription, payload)));
+    await Promise.all(subscriptions.map((subscription) => this.sendToSubscription(subscription, decorated)));
   }
 
   private async sendToSubscription(subscription: PushSubscriptionRecord, payload: PushNotificationPayload): Promise<void> {
