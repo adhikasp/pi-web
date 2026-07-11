@@ -22,11 +22,16 @@ import { TerminalService } from "./terminals/terminalService.js";
 import { registerTerminalRoutes } from "./terminals/terminalRoutes.js";
 import { getPiWebRuntimeComponent } from "./piWebStatus.js";
 import { SESSIOND_RUNTIME_CAPABILITIES } from "../shared/capabilities.js";
-import { agentSessionDirEnvKeys, effectivePiWebConfig, maxUploadBytes } from "../config.js";
+import { agentSessionDirEnvKeys, effectivePiWebConfig, maxUploadBytes, scheduledTasksEnabled, spawnSessionsEnabled, subsessionsEnabled } from "../config.js";
 import { createActiveAgentProfileDescriptor } from "../sessiond/activeAgentProfile.js";
 import { runSessionDaemonStartup } from "./sessiond/sessionDaemonStartup.js";
 import { PushService } from "./push/pushService.js";
 import { PushSubscriptionStore } from "./push/pushSubscriptionStore.js";
+import { ScheduledTaskRunStore } from "./storage/scheduledTaskRunStore.js";
+import { ScheduledTaskStore } from "./storage/scheduledTaskStore.js";
+import { ScheduledTaskScheduler } from "./scheduledTasks/scheduledTaskScheduler.js";
+import { ScheduledTaskService } from "./scheduledTasks/scheduledTaskService.js";
+import { registerScheduledTaskRoutes } from "./scheduledTasks/scheduledTaskRoutes.js";
 
 const daemonEnvironment: NodeJS.ProcessEnv = Object.freeze({ ...process.env });
 const { config } = effectivePiWebConfig({ env: daemonEnvironment });
@@ -51,9 +56,11 @@ await runSessionDaemonStartup({
     });
     await unreadStore.load();
     const workspaceActivity = new WorkspaceActivityService(eventHub);
-    const auth = await AuthService.create({ agentDir: activeAgentProfile.dir, logger: app.log });
+const auth = await AuthService.create({ agentDir: activeAgentProfile.dir, logger: app.log });
+    const projects = new ProjectService(new ProjectStore());
+    const workspaces = new WorkspaceService();
     const spawnTargets = config.spawnSessions
-      ? new ProjectScopedSpawnTargetResolver({ projects: new ProjectService(new ProjectStore()), workspaces: new WorkspaceService() })
+      ? new ProjectScopedSpawnTargetResolver({ projects, workspaces })
       : undefined;
     const pushStore = new PushSubscriptionStore();
     const pushService = new PushService(config, pushStore, { logger: app.log });
@@ -79,13 +86,17 @@ await runSessionDaemonStartup({
       ...getPiWebRuntimeComponent("sessiond", SESSIOND_RUNTIME_CAPABILITIES),
       activeAgentProfile,
     });
-    return { eventHub, workspaceActivity, auth, sessions, terminals, unreadStore, activeAgentProfile, runtimeComponent, pushService };
+    return { eventHub, workspaceActivity, auth, sessions, terminals, unreadStore, activeAgentProfile, runtimeComponent, pushService, scheduledTaskScheduler, scheduledTaskService };
   },
-  registerRoutes({ eventHub, workspaceActivity, auth, sessions, terminals, runtimeComponent }) {
+  registerRoutes({ eventHub, workspaceActivity, auth, sessions, terminals, runtimeComponent, scheduledTaskScheduler, scheduledTaskService }) {
     registerWorkspaceActivityRoutes(app, workspaceActivity);
     registerAuthRoutes(app, auth);
     registerSessionRoutes(app, sessions, eventHub);
     registerTerminalRoutes(app, terminals);
+
+    if (scheduledTasksEnabled(config, {})) {
+      registerScheduledTaskRoutes(app, scheduledTaskService, scheduledTaskScheduler);
+    }
 
     app.get("/health", () => ({
       ok: true,
@@ -102,16 +113,21 @@ await runSessionDaemonStartup({
 
     app.get("/runtime", () => runtimeComponent);
   },
-  async listen({ auth, sessions, terminals, unreadStore }) {
+  async listen({ auth, sessions, terminals, unreadStore, scheduledTaskScheduler }) {
+    if (scheduledTasksEnabled(process.env, config)) {
+      await scheduledTaskScheduler.start();
+    }
+
     let shuttingDown = false;
     async function shutdown(signal: NodeJS.Signals): Promise<void> {
       if (shuttingDown) return;
       shuttingDown = true;
       app.log.info({ signal }, "shutting down session daemon");
-      const attempt = async (operation: string, run: () => void | Promise<void>): Promise<void> => {
+      scheduledTaskScheduler.dispose();
+      const attempt = async (operation, run) => {
         try {
           await run();
-        } catch (error: unknown) {
+        } catch (error) {
           process.exitCode = 1;
           app.log.error({ err: error, operation }, "session daemon shutdown operation failed");
         }

@@ -1,6 +1,7 @@
 import { SESSION_NOTIFICATION_LIMIT, SESSION_NOTIFICATION_MESSAGE_BYTES, SESSION_UNREAD_CATALOG_ID_MAX_LENGTH, SESSION_UNREAD_COMPLETED_AT_MAX_LENGTH, SESSION_UNREAD_CWD_MAX_LENGTH, SESSION_UNREAD_LIMIT, SESSION_UNREAD_SESSION_ID_MAX_LENGTH, type ArchiveSessionsResponse, type AuthProviderOption, type AuthProviderStatus, type AuthProvidersResponse, type AuthStatusSource, type AuthType, type CommandOption, type CommandResult, type DeleteWorkspaceFileResponse, type FileContentResponse, type FileSuggestion, type FileTreeEntry, type FileTreeResponse, type GitDiffResponse, type GitFileState, type GitStatusFile, type GitStatusResponse, type Machine, type MachineHealth, type MachineKind, type MachineRuntime, type MachineStatus, type MessagePage, type ModelSelectionResponse, type MoveWorkspaceFileResponse, type OAuthFlowState, type PiWebAgentDirEnvSource, type PiWebCapability, type PiWebComponentStatus, type PiWebConfigEnvOverrides, type PiWebConfigResponse, type PiWebConfigValues, type PiWebInstallationInfo, type PiWebPluginConfigMap, type PiWebPluginInfo, type PiWebPluginsResponse, type PiWebPluginScope, type PiWebReleaseStatus, type PiWebRuntimeComponent, type PiWebRuntimeResponse, type PiWebServiceComponent, type PiWebShortcutConfig, type PiWebStatusMessage, type PiWebStatusResponse, type PiWebStatusSeverity, type Project, type QueuedSessionMessage, type SavedPromptAttachment, type SessionBulkArchiveResponse, type SessionBulkDeleteArchivedResponse, type SessionBulkFailure, type SessionCleanupExecuteResponse, type SessionCleanupPreviewResponse, type SessionCleanupProjectSummary, type SessionCleanupThresholds, type SessionCleanupTotals, type SessionInfo, type SessionModel, type SessionNotification, type SessionNotificationClearReason, type SessionNotificationDismissThrough, type SessionNotificationInboxDelta, type SessionNotificationInboxEvent, type SessionNotificationInboxSnapshot, type SessionNotificationSeverity, type SessionNotificationSummary, type SessionStatus, type SessionStreamSnapshot, type SessionUnreadCatalogSnapshot, type SessionUnreadEvent, type SessionUnreadSummary, type SessionWarning, type SessionWarningSeverity, type SlashCommand, type TerminalCommandRun, type TerminalCommandRunStatus, type TerminalInfo, type ThinkingLevelsResponse, type WriteWorkspaceFileResponse, type Workspace, type WorkspaceActivity, type WorkspaceActivityResponse } from "../../../shared/apiTypes";
 import type { PiPackageInfo, PiPackageMutationAction, PiPackageMutationResponse, PiPackageScope, PiPackagesResponse, SessionTreeNavigateResult, SessionTreeNode, SessionTreeNodeKind, SessionTreeSnapshot } from "../../../shared/apiTypes";
 import { parseActiveAgentProfileDescriptor } from "../../../shared/activeAgentProfile";
+import type { ScheduledTask, ScheduledTaskRun, ScheduledTaskRunStatus, ScheduledTaskRunTrigger, ScheduledTaskSchedule, ScheduledTaskSessionMode } from "../../../shared/apiTypes";
 import { parseKnownPiWebCapabilities } from "../../../shared/capabilities";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1437,4 +1438,61 @@ function numberOrNull(record: Record<string, unknown>, key: string): number | nu
 
 function optionalField(key: string, value: unknown): object {
   return value === undefined ? {} : { [key]: value };
+}
+
+function requireSchedule(record: Record<string, unknown>, key: string): ScheduledTaskSchedule {
+  const value = record[key];
+  const scheduleRecord = requireRecord(value);
+  return { cron: requireString(scheduleRecord, "cron"), timezone: requireString(scheduleRecord, "timezone") };
+}
+
+function requireSessionMode(record: Record<string, unknown>, key: string): ScheduledTaskSessionMode {
+  const value = record[key];
+  if (value !== "new" && value !== "continue-latest") throw new Error(`Expected scheduled task session mode field: ${key}`);
+  return value;
+}
+
+function requireRunStatus(record: Record<string, unknown>, key: string): ScheduledTaskRunStatus {
+  const value = record[key];
+  if (value !== "running" && value !== "success" && value !== "failure" && value !== "skipped") throw new Error(`Expected scheduled task run status field: ${key}`);
+  return value;
+}
+
+function requireRunTrigger(record: Record<string, unknown>, key: string): ScheduledTaskRunTrigger {
+  const value = record[key];
+  if (value !== "schedule" && value !== "manual") throw new Error(`Expected scheduled task run trigger field: ${key}`);
+  return value;
+}
+
+export function parseScheduledTask(value: unknown): ScheduledTask {
+  const record = requireRecord(value);
+  return {
+    id: requireString(record, "id"),
+    name: requireString(record, "name"),
+    projectId: requireString(record, "projectId"),
+    prompt: requireString(record, "prompt"),
+    schedule: requireSchedule(record, "schedule"),
+    sessionMode: requireSessionMode(record, "sessionMode"),
+    notifyOnComplete: requireBoolean(record, "notifyOnComplete"),
+    enabled: requireBoolean(record, "enabled"),
+    createdAt: requireString(record, "createdAt"),
+    updatedAt: requireString(record, "updatedAt"),
+    ...optionalField("workspaceId", optionalString(record, "workspaceId")),
+    ...optionalField("nextRunAt", optionalString(record, "nextRunAt")),
+  };
+}
+
+export function parseScheduledTaskRun(value: unknown): ScheduledTaskRun {
+  const record = requireRecord(value);
+  return {
+    id: requireString(record, "id"),
+    taskId: requireString(record, "taskId"),
+    triggeredBy: requireRunTrigger(record, "triggeredBy"),
+    startedAt: requireString(record, "startedAt"),
+    status: requireRunStatus(record, "status"),
+    ...optionalField("finishedAt", optionalString(record, "finishedAt")),
+    ...optionalField("sessionId", optionalString(record, "sessionId")),
+    ...optionalField("cwd", optionalString(record, "cwd")),
+    ...optionalField("note", optionalString(record, "note")),
+  };
 }
