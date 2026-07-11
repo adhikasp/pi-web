@@ -12,7 +12,7 @@ async function handlePush(event) {
     payload = { title: "PI WEB", body: "Agent finished" };
   }
 
-  const { title, body, tag, url, sessionId, machineId, cwd, ...data } = payload ?? {};
+  const { title, body, tag, url, sessionId, machineId, cwd, publicUrl, ...data } = payload ?? {};
   const target = { sessionId, url };
 
   // Skip the OS notification if a visible, focused client already has this
@@ -31,7 +31,7 @@ async function handlePush(event) {
     icon: "/pwa-icon-192.png",
     badge: "/pwa-icon-192.png",
     tag: tag ?? (sessionId !== undefined ? `agent-end:${sessionId}` : "agent-end"),
-    data: { url: url ?? "/", sessionId, machineId, cwd, ...data },
+    data: { url: url ?? "/", sessionId, machineId, cwd, publicUrl, ...data },
     requireInteraction: false,
     vibrate: [200, 100, 200],
   });
@@ -41,8 +41,8 @@ async function handlePush(event) {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data ?? {};
-  const { sessionId, machineId, cwd } = data;
-  const targetUrl = sessionRouteUrl({ machineId, cwd, sessionId, fallbackUrl: data.url });
+  const { sessionId, machineId, cwd, publicUrl } = data;
+  const targetUrl = sessionRouteUrl({ machineId, cwd, sessionId, fallbackUrl: data.url, publicUrl });
 
   event.waitUntil(
     (async () => {
@@ -76,13 +76,16 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-/** Builds the `/?machine=&workspace=&session=` route URL a notification or launch should land on. */
-function sessionRouteUrl({ machineId, cwd, sessionId, fallbackUrl }) {
+/** Builds the `/?machine=&workspace=&session=` route URL a notification or launch should land on.
+ *  When `publicUrl` is provided (e.g. from PI_WEB_PUBLIC_URL), it is used as an absolute prefix
+ *  so notification clicks always resolve to the user-visible hostname instead of localhost. */
+function sessionRouteUrl({ machineId, cwd, sessionId, fallbackUrl, publicUrl }) {
   const params = new URLSearchParams();
   if (machineId && machineId !== "local") params.set("machine", machineId);
   if (cwd) params.set("workspace", cwd);
   if (sessionId) params.set("session", sessionId);
-  return params.size > 0 ? `/?${params.toString()}` : (fallbackUrl ?? "/");
+  const base = publicUrl !== undefined && publicUrl !== "" ? publicUrl.replace(/\/+$/, "") : "";
+  return params.size > 0 ? `${base}/?${params.toString()}` : (base !== "" ? base : fallbackUrl ?? "/");
 }
 
 /** Whether an open client window is already showing the given session/url. */

@@ -145,6 +145,7 @@ export function resolveEffectivePiWebConfig(loaded: LoadedPiWebConfig, options: 
   const vapidPublicKey = env["PI_WEB_VAPID_PUBLIC_KEY"] ?? loaded.config.vapidPublicKey;
   const vapidPrivateKey = env["PI_WEB_VAPID_PRIVATE_KEY"] ?? loaded.config.vapidPrivateKey;
   const vapidContact = env["PI_WEB_VAPID_CONTACT"] ?? loaded.config.vapidContact;
+  const publicUrl = env["PI_WEB_PUBLIC_URL"] ?? loaded.config.publicUrl;
   return {
     ...loaded,
     config: {
@@ -164,6 +165,7 @@ export function resolveEffectivePiWebConfig(loaded: LoadedPiWebConfig, options: 
       ...(vapidPublicKey !== undefined && vapidPublicKey !== "" ? { vapidPublicKey } : {}),
       ...(vapidPrivateKey !== undefined && vapidPrivateKey !== "" ? { vapidPrivateKey } : {}),
       ...(vapidContact !== undefined && vapidContact !== "" ? { vapidContact } : {}),
+      ...(publicUrl !== undefined && publicUrl !== "" ? { publicUrl } : {}),
     },
   };
 }
@@ -190,6 +192,7 @@ export function savePiWebConfig(config: PiWebConfig, options: LoadOptions = {}):
   delete existing["vapidPublicKey"];
   delete existing["vapidPrivateKey"];
   delete existing["vapidContact"];
+  delete existing["publicUrl"];
   const merged = { ...existing, ...piWebConfigRecord(normalized) };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
@@ -220,6 +223,7 @@ function piWebConfigRecord(config: PiWebConfig): Record<string, unknown> {
     ...(config.vapidPublicKey !== undefined ? { vapidPublicKey: config.vapidPublicKey } : {}),
     ...(config.vapidPrivateKey !== undefined ? { vapidPrivateKey: config.vapidPrivateKey } : {}),
     ...(config.vapidContact !== undefined ? { vapidContact: config.vapidContact } : {}),
+    ...(config.publicUrl !== undefined ? { publicUrl: config.publicUrl } : {}),
   };
 }
 
@@ -240,6 +244,7 @@ function parsePiWebConfig(value: Record<string, unknown>, path: string): PiWebCo
     ...(value["vapidPublicKey"] !== undefined ? { vapidPublicKey: parseString(value["vapidPublicKey"], "vapidPublicKey", path) } : {}),
     ...(value["vapidPrivateKey"] !== undefined ? { vapidPrivateKey: parseString(value["vapidPrivateKey"], "vapidPrivateKey", path) } : {}),
     ...(value["vapidContact"] !== undefined ? { vapidContact: parseString(value["vapidContact"], "vapidContact", path) } : {}),
+    ...(value["publicUrl"] !== undefined ? { publicUrl: parseString(value["publicUrl"], "publicUrl", path) } : {}),
   };
 }
 
