@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readRoute, writeRoute, type AppRoute } from "./route";
+import { isDeepLinkRoute, readRoute, writeRoute, type AppRoute } from "./route";
 
 const originalWindow = globalThis.window;
 
@@ -76,5 +76,24 @@ describe("route helpers", () => {
 
     expect(pushed).toEqual([]);
     expect(replaced).toEqual([]);
+  });
+});
+
+describe("isDeepLinkRoute", () => {
+  it("is true only when both a project and a session id are present", () => {
+    expect(isDeepLinkRoute({ machineId: undefined, projectId: "p1", workspaceId: undefined, sessionId: "s1", tool: undefined, view: undefined })).toBe(true);
+  });
+
+  it("is false when the project id is missing", () => {
+    expect(isDeepLinkRoute({ machineId: undefined, projectId: undefined, workspaceId: undefined, sessionId: "s1", tool: undefined, view: undefined })).toBe(false);
+  });
+
+  it("is false when the session id is missing", () => {
+    expect(isDeepLinkRoute({ machineId: undefined, projectId: "p1", workspaceId: undefined, sessionId: undefined, tool: undefined, view: undefined })).toBe(false);
+  });
+
+  it("treats empty strings as missing", () => {
+    expect(isDeepLinkRoute({ machineId: undefined, projectId: "", workspaceId: undefined, sessionId: "s1", tool: undefined, view: undefined })).toBe(false);
+    expect(isDeepLinkRoute({ machineId: undefined, projectId: "p1", workspaceId: undefined, sessionId: "", tool: undefined, view: undefined })).toBe(false);
   });
 });

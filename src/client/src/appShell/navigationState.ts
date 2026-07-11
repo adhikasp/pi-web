@@ -45,9 +45,19 @@ export function nextNavigationSection(section: NavigationSection): NavigationSec
   return NAVIGATION_SECTION_ORDER[NAVIGATION_SECTION_ORDER.indexOf(section) + 1];
 }
 
+export interface NavigationSectionsControllerOptions {
+  /**
+   * Sections that should start collapsed on construction. Used as the initial
+   * value of the in-memory collapsed set; the user can still toggle sections
+   * afterwards. The state resets to this default on every page load because
+   * the per-section collapse state is intentionally not persisted.
+   */
+  defaultCollapsedSections?: readonly NavigationSection[];
+}
+
 export class NavigationSectionsController implements ReactiveController {
   private expanded: ExpandedNavigationSection;
-  private collapsedSections: readonly NavigationSection[] = [];
+  private collapsedSections: readonly NavigationSection[];
 
   hostConnected(): void {
     return;
@@ -57,8 +67,11 @@ export class NavigationSectionsController implements ReactiveController {
     private readonly host: ReactiveControllerHost,
     private readonly getState: () => NavigationSelectionState,
     private readonly isMobileLayout: () => boolean,
+    options: NavigationSectionsControllerOptions = {},
   ) {
     host.addController(this);
+    this.expanded = undefined;
+    this.collapsedSections = orderedNavigationSections(options.defaultCollapsedSections ?? []);
   }
 
   expandedSection(): NavigationSection | undefined {

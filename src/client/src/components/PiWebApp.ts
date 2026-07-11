@@ -49,7 +49,7 @@ import { BrowserResumeController } from "../appShell/browserResumeController";
 import { NavigationSectionsController, type NavigationSection } from "../appShell/navigationState";
 import { PanelCollapseController, mainViewClass } from "../appShell/panelCollapseController";
 import { PanelResizeController, type PanelResizeConstraints, type ResizablePanelSide } from "../appShell/panelResizeController";
-import { readRoute, writeRoute, type AppRoute } from "../route";
+import { isDeepLinkRoute, readRoute, writeRoute, type AppRoute } from "../route";
 import { readSettingsSection, writeSettingsSection, type SettingsSection } from "../settingsRoute";
 import { clearAppIntentParams, formatSharedText, parseAppIntent, type AppIntent } from "../appIntent";
 import { installLaunchQueueConsumer } from "../launchQueue";
@@ -105,6 +105,7 @@ const TERMINAL_ROUTE_NAMESPACE = queryNamespace("core:workspace.terminal");
 const MIN_RESIZABLE_CHAT_WIDTH_PX = 320;
 const PANEL_EDGE_COLUMNS_WIDTH_PX = 2;
 const DESKTOP_SIDE_BY_SIDE_MEDIA_QUERY = "(min-width: 1181px)";
+const DEEP_LINK_DEFAULT_COLLAPSED_SECTIONS: readonly NavigationSection[] = ["machines", "projects", "workspaces", "scheduledTasks"];
 
 interface SessionCleanupDialogState {
   preview?: SessionCleanupPreviewResponse | undefined;
@@ -243,6 +244,12 @@ export class PiWebApp extends LitElement {
     this,
     () => this.state,
     () => this.appShell.isMobileNavigationLayout,
+    {
+      // When the app opens straight into a specific project + conversation
+      // (deep link), keep only the sessions list expanded by default and
+      // collapse the other sidebar sections so the chat has the focus.
+      defaultCollapsedSections: isDeepLinkRoute(readRoute()) ? DEEP_LINK_DEFAULT_COLLAPSED_SECTIONS : [],
+    },
   );
   private readonly systemLightThemeMedia = typeof window !== "undefined" && "matchMedia" in window ? window.matchMedia("(prefers-color-scheme: light)") : undefined;
   private terminalAutoStartWorkspaceId: string | undefined;

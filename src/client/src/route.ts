@@ -21,6 +21,20 @@ export function readRoute(): AppRoute {
   };
 }
 
+/**
+ * True when the route already points at a specific project and conversation
+ * (deep link). Used to pick a sensible default for the navigation panel on
+ * first load: if the user is being sent straight to a conversation, the
+ * sidebar is collapsed so the chat gets the screen real estate.
+ */
+export function isDeepLinkRoute(route: AppRoute): boolean {
+  return hasId(route.projectId) && hasId(route.sessionId);
+}
+
+function hasId(value: string | undefined): boolean {
+  return value !== undefined && value !== "";
+}
+
 export function writeRoute(route: AppRoute, options?: { replace?: boolean | undefined }): void {
   const url = new URL(window.location.href);
   url.searchParams.delete("machine");

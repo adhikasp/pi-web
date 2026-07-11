@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { defaultNavigationSection, expandedNavigationSection, isNavigationSectionCollapsed, toggleCollapsedNavigationSection, toggleNavigationSection } from "./navigationState";
+import type { ReactiveControllerHost } from "lit";
+import { NavigationSectionsController, defaultNavigationSection, expandedNavigationSection, isNavigationSectionCollapsed, toggleCollapsedNavigationSection, toggleNavigationSection } from "./navigationState";
 
 describe("navigationState", () => {
   it("defaults to the first incomplete selection section", () => {
@@ -52,3 +53,61 @@ describe("navigationState", () => {
   });
 
 });
+
+describe("NavigationSectionsController", () => {
+  it("starts with every section expanded when no default is provided", () => {
+    const controller = new NavigationSectionsController(new FakeHost(), () => ({ selectedProject: {}, selectedWorkspace: {} }), () => false);
+
+    expect(controller.isCollapsed("machines")).toBe(false);
+    expect(controller.isCollapsed("projects")).toBe(false);
+    expect(controller.isCollapsed("workspaces")).toBe(false);
+    expect(controller.isCollapsed("scheduledTasks")).toBe(false);
+    expect(controller.isCollapsed("sessions")).toBe(false);
+  });
+
+  it("starts with the configured default sections collapsed", () => {
+    const controller = new NavigationSectionsController(
+      new FakeHost(),
+      () => ({ selectedProject: {}, selectedWorkspace: {} }),
+      () => false,
+      { defaultCollapsedSections: ["projects", "workspaces", "scheduledTasks"] },
+    );
+
+    expect(controller.isCollapsed("machines")).toBe(false);
+    expect(controller.isCollapsed("projects")).toBe(true);
+    expect(controller.isCollapsed("workspaces")).toBe(true);
+    expect(controller.isCollapsed("scheduledTasks")).toBe(true);
+    expect(controller.isCollapsed("sessions")).toBe(false);
+  });
+
+  it("still lets the user expand a section that started collapsed", () => {
+    const controller = new NavigationSectionsController(
+      new FakeHost(),
+      () => ({ selectedProject: {}, selectedWorkspace: {} }),
+      () => false,
+      { defaultCollapsedSections: ["projects", "workspaces", "scheduledTasks"] },
+    );
+
+    expect(controller.isCollapsed("projects")).toBe(true);
+    controller.toggle("projects");
+    expect(controller.isCollapsed("projects")).toBe(false);
+  });
+});
+
+class FakeHost implements ReactiveControllerHost {
+  addController(): void {
+    return;
+  }
+
+  removeController(): void {
+    return;
+  }
+
+  requestUpdate(): void {
+    return;
+  }
+
+  get updateComplete(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
+}
