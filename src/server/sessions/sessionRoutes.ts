@@ -429,7 +429,12 @@ export function registerSessionRoutes(app: FastifyInstance, sessions: SessionRou
     // Only the id matters for event subscription; cwd is intentionally ignored
     // so a malformed value cannot throw inside the websocket handler.
     const sessionId = request.params.sessionId;
-    eventHub.add(sessionId, socket);
+    // Send catch-up state BEFORE adding to the event hub so the client
+    // receives the in-progress stream state before any live events.
+    const streamState = sessions.getStreamingState(sessionId);
+    if (streamState !== undefined && socket.readyState === socket.OPEN) {
+      socket.send(JSON.stringify({ type: "stream.catchup", partialMessage: streamState.partialMessage, activeToolCalls: streamState.activeToolCalls }));
+    }
     // questionnaire.show is only ever broadcast once, at ask time, to sockets
     // connected at that moment. Catch up a (re)connecting socket so a pending
     // question isn't stranded as an unactionable "pending" tool call.
@@ -437,6 +442,7 @@ export function registerSessionRoutes(app: FastifyInstance, sessions: SessionRou
     if (pending !== undefined && socket.readyState === socket.OPEN) {
       socket.send(JSON.stringify({ type: "questionnaire.show", requestId: pending.requestId, questions: pending.questions }));
     }
+    eventHub.add(sessionId, socket);
   });
 
   app.get(`${prefix}/sessions/events`, { websocket: true }, (socket) => {

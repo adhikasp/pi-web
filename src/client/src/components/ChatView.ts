@@ -644,7 +644,8 @@ export class ChatView extends LitElement {
     return this.partialStreamNoticeBody;
   }
 
-  private renderConversationRail() {
+
+    private renderConversationRail() {
     if (!this.messages.length || this.messageTotal <= 0) return null;
     const total = this.conversationDisplayTotal();
     const position = this.conversationPositionPercent(total);

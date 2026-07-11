@@ -1339,6 +1339,7 @@ export class SessionController {
     // so live content streams directly on top of the seeded partial.
     if (this.isStreamEventBelowWatermark(event)) return;
 
+
     // Questionnaire dialog - shown as an overlay, not a chat message.
     if (event.type === "questionnaire.show") {
       this.setState({ questionnaire: { requestId: event.requestId, questions: event.questions } });
@@ -1440,6 +1441,7 @@ export class SessionController {
     const watermark = this.streamWatermark;
     if (watermark === undefined || watermark.sessionId !== this.getState().selectedSession?.id) return false;
     return event.seq !== undefined && event.seq <= watermark.seq;
+
   }
 }
 

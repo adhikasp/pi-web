@@ -1486,6 +1486,7 @@ export class PiSessionService implements SessionRouteService {
       ? null
       : projectBrowserMessage(streamingMessage);
     return { seq, partial };
+
   }
 
   async availableModels(ref: PiSessionLookup): Promise<ClientSessionModel[]> {
@@ -3840,3 +3841,5 @@ function stringifyPrimitive(value: unknown): string {
   if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
   return "";
 }
+
+
