@@ -1116,7 +1116,8 @@ export class PiWebApp extends LitElement {
         void this.renegotiateUnreadMachine(machineId);
         const workspace = this.state.selectedWorkspace;
         if (workspace !== undefined) void this.refreshActiveTerminals(workspace);
-        void this.refreshWorkspaceActivity(machineId);
+void this.refreshWorkspaceActivity(machineId);
+        void this.sessions.refreshCurrentWorkspaceSessions();
       },
       machineId,
     );
