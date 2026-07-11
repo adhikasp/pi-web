@@ -771,7 +771,8 @@ export type SessionUiEvent =
   | { type: "session.created"; session: SessionInfo }
   | { type: "session.read"; sessionId: string; lastReadAt: string; lastReadMessageCount: number }
   | { type: "pi.event"; eventType: string }
-  | { type: "questionnaire.show"; requestId: string; questions: QuestionnaireQuestion[] };
+  | { type: "questionnaire.show"; requestId: string; questions: QuestionnaireQuestion[] }
+  | { type: "stream.catchup"; partialMessage?: unknown; activeToolCalls: { toolName: string; toolCallId: string; summary: string; args?: unknown }[] };
 
 export interface QuestionnaireQuestion {
   question: string;

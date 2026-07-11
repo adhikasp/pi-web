@@ -1105,6 +1105,18 @@ export class SessionController {
 
   private applyEvent(event: SessionUiEvent) {
     const selectedSessionId = this.getState().selectedSession?.id;
+
+    // Stream catch-up: the backend sends the accumulated in-progress state when
+    // we connect to an already-streaming session so we can attach to the live
+    // stream without losing the message prefix.
+    if (event.type === "stream.catchup") {
+      this.applyStreamCatchup(event);
+      return;
+    }
+
+    // Fallback: if we're still waiting for a stream.catchup that never arrived
+    // (e.g. the response finished between status check and WS connect),
+    // suppress transcript events and finish on message.end / agent.end.
     if (this.catchupStreamSessionId !== undefined && this.catchupStreamSessionId === selectedSessionId) {
       if (event.type === "message.end" || event.type === "agent.end") {
         this.finishStreamCatchup(this.catchupStreamSessionId);
@@ -1207,11 +1219,12 @@ export class SessionController {
 
   // Stream catch-up is a single mode with two coupled facets that must never
   // drift: the private `catchupStreamSessionId` guard (which suppresses live
-  // transcript events while we lack the in-flight message prefix) and the
-  // public `isReceivingPartialStream` flag (which drives the "Catching up…"
-  // badge). Route every mutation of the mode through this helper so the guard
-  // and the badge can never disagree. Catch-up only ever applies to the
-  // selected session, so an active session id always implies the badge is on.
+  // transcript events while we wait for `stream.catchup`) and the public
+  // `isReceivingPartialStream` flag (which blocks scroll restoration until
+  // the in-progress transcript is reconstructed). Route every mutation of the
+  // mode through this helper so the guard and the flag can never disagree.
+  // Catch-up only ever applies to the selected session, so an active session
+  // id always implies the flag is on.
   private setStreamCatchup(sessionId: string | undefined): Pick<AppState, "isReceivingPartialStream"> {
     this.catchupStreamSessionId = sessionId;
     return { isReceivingPartialStream: sessionId !== undefined };
@@ -1224,6 +1237,40 @@ export class SessionController {
     this.catchupStreamSessionId = undefined;
     if (isSelected) this.setState({ isReceivingPartialStream: false });
     void this.refreshMessages(sessionId);
+  }
+
+  /**
+   * Apply a stream.catchup event from the backend. This reconstructs the
+   * in-progress partial state so live delta events can continue from here
+   * without missing the message prefix.
+   */
+  private applyStreamCatchup(event: Extract<SessionUiEvent, { type: "stream.catchup" }>): void {
+    const sessionId = this.catchupStreamSessionId;
+    if (sessionId === undefined) return;
+    this.catchupStreamSessionId = undefined;
+
+    let messages = this.getState().messages;
+
+    // Apply the partial assistant message (accumulated text + tool calls).
+    if (event.partialMessage !== undefined) {
+      const updated = this.transcripts.applyLiveEvent(messages, { type: "message.append", message: event.partialMessage });
+      if (updated !== undefined) messages = updated;
+    }
+
+    // Recreate tool.start entries for still-executing tool calls so
+    // subsequent tool.update / tool.end events can find their targets.
+    for (const toolCall of event.activeToolCalls) {
+      const updated = this.transcripts.applyLiveEvent(messages, {
+        type: "tool.start",
+        toolName: toolCall.toolName,
+        toolCallId: toolCall.toolCallId,
+        summary: toolCall.summary,
+        args: toolCall.args,
+      });
+      if (updated !== undefined) messages = updated;
+    }
+
+    this.setState({ messages, isReceivingPartialStream: false });
   }
 
   private async refreshMessages(sessionId: string) {
