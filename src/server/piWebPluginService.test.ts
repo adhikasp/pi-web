@@ -44,6 +44,22 @@ describe("PiWebPluginService", () => {
     expect(asset?.content.toString("utf8")).toContain("export default");
   });
 
+  it("preserves content types for extension-only asset names", async () => {
+    const pluginDir = join(tempDir, "plugins", "extension-only");
+    await writePlugin(pluginDir, {
+      packageJson: { piWeb: { plugins: [{ id: "extension-only", module: ".js" }] } },
+      files: {
+        ".js": "export default {};",
+        ".svg": '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+      },
+    });
+
+    const service = new PiWebPluginService({ roots: [{ path: join(tempDir, "plugins"), source: "test", scope: "local" }], packageProvider: false });
+
+    await expect(service.readAsset("extension-only", ".js")).resolves.toMatchObject({ contentType: "application/javascript; charset=utf-8" });
+    await expect(service.readAsset("extension-only", ".svg")).resolves.toMatchObject({ contentType: "image/svg+xml" });
+  });
+
   it("serves nested SVG assets with a browser-compatible content type", async () => {
     const pluginDir = join(tempDir, "plugins", "icons");
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"></svg>';

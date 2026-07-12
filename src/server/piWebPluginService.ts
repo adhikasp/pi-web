@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
-import { dirname, extname, join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DefaultPackageManager, getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { loadPiWebConfig, piWebDataDir, type PiWebConfig } from "../config.js";
@@ -335,14 +335,13 @@ function isWithin(root: string, candidate: string): boolean {
 }
 
 function contentTypeFor(path: string): string {
-  switch (extname(path).toLowerCase()) {
-    case ".js": return "application/javascript; charset=utf-8";
-    case ".json": return "application/json; charset=utf-8";
-    case ".css": return "text/css; charset=utf-8";
-    case ".html": return "text/html; charset=utf-8";
-    case ".svg": return "image/svg+xml";
-    default: return "application/octet-stream";
-  }
+  const lowerPath = path.toLowerCase();
+  if (lowerPath.endsWith(".js")) return "application/javascript; charset=utf-8";
+  if (lowerPath.endsWith(".json")) return "application/json; charset=utf-8";
+  if (lowerPath.endsWith(".css")) return "text/css; charset=utf-8";
+  if (lowerPath.endsWith(".html")) return "text/html; charset=utf-8";
+  if (lowerPath.endsWith(".svg")) return "image/svg+xml";
+  return "application/octet-stream";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
