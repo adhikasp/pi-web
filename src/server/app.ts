@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
+import fastifyCompress from "@fastify/compress";
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import { ProjectStore } from "./storage/projectStore.js";
@@ -120,6 +121,13 @@ function registerLocalFileSuggestionRoutes(app: FastifyInstance, projects: Proje
 
 export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: deps.logger ?? true, ...(deps.bodyLimit === undefined ? {} : { bodyLimit: deps.bodyLimit }) });
+  // Vite proxies development API requests here, while production and machine-scoped
+  // API requests already terminate here, so this is the shared browser HTTP edge.
+  await app.register(fastifyCompress, {
+    globalCompression: true,
+    globalDecompression: false,
+    threshold: 1024,
+  });
   await app.register(fastifyWebsocket);
 
   const projects = deps.projects ?? new ProjectService(new ProjectStore());

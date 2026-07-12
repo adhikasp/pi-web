@@ -30,6 +30,7 @@ import { loadExternalPlugins } from "../plugins/external";
 import { PluginRegistry, installPluginRuntimeScope, installWorkspacePanelScope } from "../plugins/registry";
 import { queryNamespace, readNamespacedString, setNamespacedQueryKey } from "../namespacedQueryArgs";
 import { AppShellController } from "../appShell/appShellController";
+import { BrowserResumeController } from "../appShell/browserResumeController";
 import { NavigationSectionsController, type NavigationSection } from "../appShell/navigationState";
 import { PanelCollapseController, mainViewClass } from "../appShell/panelCollapseController";
 import { PanelResizeController, type PanelResizeConstraints, type ResizablePanelSide } from "../appShell/panelResizeController";
@@ -148,6 +149,11 @@ export class PiWebApp extends LitElement {
   private readonly machineNavigation = new SessionStorageMachineNavigationMemory();
   private readonly terminalSelection = new SessionStorageTerminalSelectionMemory();
   private readonly appShell = new AppShellController(this);
+  private readonly browserResume = new BrowserResumeController({
+    onResumeSignal: () => { this.handleBrowserResumeSignal(); },
+    refreshAfterResume: () => this.refreshAfterBrowserResume(),
+    onRefreshError: (error) => { console.warn("Failed to refresh after browser resume", error); },
+  });
   private readonly panelCollapse = new PanelCollapseController(this);
   private readonly panelResize = new PanelResizeController(this);
   private readonly navigationSections = new NavigationSectionsController(
@@ -191,24 +197,6 @@ export class PiWebApp extends LitElement {
     this.appShell.repairViewportPosition();
     this.retryPendingRemoteRouteRestoreSoon();
   };
-  private readonly onFocus = () => {
-    this.appShell.repairViewportPosition();
-    void this.sessions.refreshSelectedSession();
-    this.schedulePiWebStatusRefresh();
-    void this.refreshMachineActivities();
-    void this.refreshWorkspaceDeletionRuns();
-    this.retryPendingRemoteRouteRestoreSoon();
-  };
-  private readonly onVisibilityChange = () => {
-    if (document.visibilityState === "visible") {
-      this.appShell.repairViewportPosition();
-      void this.sessions.refreshSelectedSession();
-      this.schedulePiWebStatusRefresh();
-      void this.refreshMachineActivities();
-      void this.refreshWorkspaceDeletionRuns();
-      this.retryPendingRemoteRouteRestoreSoon();
-    }
-  };
   private readonly onSystemLightThemeChange = () => {
     if (this.themePreference.auto) this.applyPreferredTheme(false);
   };
@@ -232,8 +220,7 @@ export class PiWebApp extends LitElement {
     super.connectedCallback();
     window.addEventListener("popstate", this.onPopState);
     window.addEventListener("pageshow", this.onPageShow);
-    window.addEventListener("focus", this.onFocus);
-    document.addEventListener("visibilitychange", this.onVisibilityChange);
+    this.browserResume.connect();
     window.addEventListener("keydown", this.onKeyDown, GLOBAL_SHORTCUT_LISTENER_OPTIONS);
     this.systemLightThemeMedia?.addEventListener("change", this.onSystemLightThemeChange);
     this.applyPreferredTheme(false);
@@ -248,8 +235,7 @@ export class PiWebApp extends LitElement {
   override disconnectedCallback(): void {
     window.removeEventListener("popstate", this.onPopState);
     window.removeEventListener("pageshow", this.onPageShow);
-    window.removeEventListener("focus", this.onFocus);
-    document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    this.browserResume.disconnect();
     window.removeEventListener("keydown", this.onKeyDown, GLOBAL_SHORTCUT_LISTENER_OPTIONS);
     this.systemLightThemeMedia?.removeEventListener("change", this.onSystemLightThemeChange);
     this.keyboard.reset();
@@ -292,6 +278,20 @@ export class PiWebApp extends LitElement {
       this.rememberCurrentMachineNavigation();
     }
     await this.refreshWorkspaceDeletionRuns();
+  }
+
+  private handleBrowserResumeSignal(): void {
+    this.appShell.repairViewportPosition();
+    this.schedulePiWebStatusRefresh();
+    this.retryPendingRemoteRouteRestoreSoon();
+  }
+
+  private async refreshAfterBrowserResume(): Promise<void> {
+    await Promise.all([
+      this.sessions.refreshSelectedSession(),
+      this.refreshMachineActivities(),
+      this.refreshWorkspaceDeletionRuns(),
+    ]);
   }
 
   private schedulePiWebStatusRefresh(delayMs = PI_WEB_STATUS_DEFER_MS): void {

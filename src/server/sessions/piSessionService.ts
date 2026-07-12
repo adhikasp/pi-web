@@ -31,7 +31,7 @@ import { attachmentsToInlineImages, saveAttachmentsToWorkspace } from "./attachm
 import { parsePromptAttachments } from "../../shared/promptAttachments.js";
 import type { SavedPromptAttachment, SessionBulkArchiveResponse, SessionBulkDeleteArchivedResponse, SessionBulkFailure, SessionBulkMutationRef } from "../../shared/apiTypes.js";
 
-import { cwdPathsEqual } from "../workingDirectory.js";
+import { canonicalizeStoredCwd, cwdPathsEqual } from "../workingDirectory.js";
 import type { WorkspaceActivityService } from "../activity/workspaceActivityService.js";
 import { createSpawnSessionToolDefinition, type SpawnSessionInvocation, type SpawnSessionResult } from "./spawnSessionTool.js";
 import { createSubsessionToolDefinitions, type SpawnSubsessionInvocation, type SpawnSubsessionResult, type SubsessionCheckResult, type SubsessionReadQuery, type SubsessionReadResult, type SubsessionStatus, type SubsessionSummary, type SubsessionToolDeps } from "./spawnSubsessionTool.js";
@@ -261,6 +261,11 @@ export interface PiSessionRuntime {
   dispose(): Promise<void>;
 }
 
+interface PendingSessionOpen {
+  sessionId: string;
+  promise: Promise<ActiveSession<PiSessionRuntime>>;
+}
+
 interface CreateAgentRuntimeOptions {
   cwd: string;
   agentDir: string;
@@ -404,6 +409,7 @@ export interface PiSessionServiceDependencies {
 
 export class PiSessionService {
   private readonly active = new Map<string, ActiveSession<PiSessionRuntime>>();
+  private readonly pendingSessionOpens = new Map<string, PendingSessionOpen>();
   private readonly activities = new Map<string, { phase: "active" | "idle" | "error"; label: string; detail?: string; at: string }>();
   private readonly heartbeat: NodeJS.Timeout;
   private readonly commandService: SessionCommandService<PiAgentSession>;
@@ -533,8 +539,11 @@ export class PiSessionService {
   async dispose(): Promise<void> {
     clearInterval(this.heartbeat);
     this.clearCompactionDrainTimers();
+    const pendingOpens = this.pendingSessionOpenPromises();
+    if (pendingOpens.length > 0) await Promise.allSettled(pendingOpens);
     const activeSessions = Array.from(new Set(this.active.values()));
     this.active.clear();
+    this.pendingSessionOpens.clear();
     this.activities.clear();
     this.compactionPromptQueues.clear();
     this.authLossWarnings.clear();
@@ -546,8 +555,11 @@ export class PiSessionService {
     await Promise.all(activeSessions.map(async (active) => {
       active.unsubscribe();
       this.workspaceActivity?.removeSession(active.runtime.session.sessionId, active.runtime.session.sessionManager.getCwd());
-      await active.runtime.session.abort();
-      await active.runtime.dispose();
+      try {
+        await active.runtime.session.abort();
+      } finally {
+        await active.runtime.dispose();
+      }
     }));
   }
 
@@ -1540,6 +1552,8 @@ export class PiSessionService {
   }
 
   private async closeActive(sessionId: string): Promise<void> {
+    const pendingOpens = this.pendingSessionOpenPromises(sessionId);
+    if (pendingOpens.length > 0) await Promise.allSettled(pendingOpens);
     const active = this.active.get(sessionId);
     if (!active) return;
     this.active.delete(sessionId);
@@ -1573,13 +1587,49 @@ export class PiSessionService {
     if (active !== undefined) return active;
 
     const archived = await this.getArchived(ref);
-    if (archived?.archivePath !== undefined) return this.create(this.sessionManager.open(archived.archivePath), archived.cwd);
+    if (archived?.archivePath !== undefined) {
+      const { archivePath } = archived;
+      return this.openExistingSession(
+        archived.sessionId,
+        archived.cwd,
+        () => this.sessionManager.open(archivePath),
+      );
+    }
 
     const match = isPiSessionRef(ref)
       ? (await this.sessionManager.list(ref.cwd)).find((s) => s.id === ref.id || s.id.startsWith(ref.id))
       : (await this.sessionManager.listAll?.() ?? []).find((s) => s.id === ref || s.id.startsWith(ref));
     if (!match) throw new Error("Session not found");
-    return this.create(this.sessionManager.open(match.path), match.cwd);
+    return this.openExistingSession(match.id, match.cwd, () => this.sessionManager.open(match.path));
+  }
+
+  private openExistingSession(
+    sessionId: string,
+    cwd: string,
+    openSessionManager: () => PiSessionManager,
+  ): Promise<ActiveSession<PiSessionRuntime>> {
+    const active = this.activeForLookup({ id: sessionId, cwd });
+    if (active !== undefined) return Promise.resolve(active);
+
+    const key = JSON.stringify([canonicalizeStoredCwd(cwd), sessionId]);
+    const existing = this.pendingSessionOpens.get(key);
+    if (existing !== undefined) return existing.promise;
+
+    const pending: PendingSessionOpen = {
+      sessionId,
+      promise: this.create(openSessionManager(), cwd),
+    };
+    pending.promise = pending.promise.finally(() => {
+      if (this.pendingSessionOpens.get(key) === pending) this.pendingSessionOpens.delete(key);
+    });
+    this.pendingSessionOpens.set(key, pending);
+    return pending.promise;
+  }
+
+  private pendingSessionOpenPromises(sessionId?: string): Promise<ActiveSession<PiSessionRuntime>>[] {
+    return [...this.pendingSessionOpens.values()]
+      .filter((pending) => sessionId === undefined || pending.sessionId === sessionId)
+      .map((pending) => pending.promise);
   }
 
   private async getArchived(ref: PiSessionLookup): Promise<ArchivedSessionRecord | undefined> {
@@ -1613,18 +1663,40 @@ export class PiSessionService {
       delegationToolsEnabled,
       ...(options.initialModel === undefined ? {} : { initialModel: options.initialModel }),
     });
-    await this.bindSessionExtensions(runtime.session);
     const active: ActiveSession<PiSessionRuntime> = { runtime, unsubscribe: noop };
-    this.bindRuntime(active);
-    runtime.setRebindSession(async (session) => {
-      await this.bindSessionExtensions(session);
+    try {
+      await this.bindSessionExtensions(runtime.session);
       this.bindRuntime(active);
-      await this.recoverSubsessionTrackingForOpenedSession(session);
-    });
-    this.active.set(runtime.session.sessionId, active);
-    await this.recoverSubsessionTrackingForOpenedSession(runtime.session);
-    this.publishStatus(runtime.session);
-    return active;
+      runtime.setRebindSession(async (session) => {
+        await this.bindSessionExtensions(session);
+        this.bindRuntime(active);
+        await this.recoverSubsessionTrackingForOpenedSession(session);
+      });
+      this.active.set(runtime.session.sessionId, active);
+      await this.recoverSubsessionTrackingForOpenedSession(runtime.session);
+      this.publishStatus(runtime.session);
+      return active;
+    } catch (error: unknown) {
+      active.unsubscribe();
+      let removedActive = false;
+      for (const [sessionId, candidate] of this.active.entries()) {
+        if (candidate !== active) continue;
+        this.active.delete(sessionId);
+        this.activities.delete(sessionId);
+        this.clearAuthLossWarningsForSession(sessionId);
+        this.clearCompactionPromptQueue(sessionId);
+        removedActive = true;
+      }
+      if (removedActive) {
+        this.workspaceActivity?.removeSession(runtime.session.sessionId, runtime.session.sessionManager.getCwd());
+      }
+      try {
+        await runtime.session.abort();
+      } finally {
+        await runtime.dispose();
+      }
+      throw error;
+    }
   }
 
   private async bindSessionExtensions(session: PiAgentSession): Promise<void> {
