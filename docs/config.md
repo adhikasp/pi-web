@@ -109,7 +109,7 @@ Rows with JSON key `—` are runtime-only environment variables, not config-file
 | Project config version | `version` | — | Project | Project-local only; must be `1` when present | Next project-config read |
 | **Runtime-only environment variables** |  |  |  |  |  |
 | Global config file path | — | `PI_WEB_CONFIG` (`XDG_CONFIG_HOME` affects the default path) | Process/env | Selects the global config file; not a project config | Restart services/processes after changing env |
-| Managed data directory | — | `PI_WEB_DATA_DIR` | Process/env | Not supported locally | Restart web/API and session daemon before changing; relocates managed state, including session archives |
+| Managed data directory | — | `PI_WEB_DATA_DIR` | Process/env | Not supported locally | Restart web/API and session daemon |
 | Session daemon socket | — | `PI_WEB_SESSIOND_SOCKET` | Web/API + session daemon env | Not supported locally | Restart daemon and web/API; both must match |
 | Session daemon TCP port | — | `PI_WEB_SESSIOND_PORT` | Session daemon env | Not supported locally | Restart session daemon; set `PI_WEB_SESSIOND_URL` for web/API too |
 | Session daemon TCP host | — | `PI_WEB_SESSIOND_HOST` | Session daemon env | Not supported locally | Restart session daemon |
@@ -121,17 +121,6 @@ Rows with JSON key `—` are runtime-only environment variables, not config-file
 | Skip update checks | — | `PI_WEB_SKIP_VERSION_CHECK`, `PI_WEB_OFFLINE`, `PI_SKIP_VERSION_CHECK`, `PI_OFFLINE` | Web/API env | Not supported locally | Restart web/API after env changes |
 
 ## Key details
-
-### Managed data directory
-
-`PI_WEB_DATA_DIR` selects the machine-global root for PI WEB-managed state. It defaults to `~/.pi-web`. Session archival uses this layout:
-
-- `$PI_WEB_DATA_DIR/archived-sessions.json` for the archive index.
-- `$PI_WEB_DATA_DIR/archived-sessions/` for archived session files.
-
-The session daemon owns both archive locations. Restart the session daemon after setting or changing `PI_WEB_DATA_DIR`; restart the web/API process as well so its other managed-state stores use the same root.
-
-PI WEB does not move existing managed state when `PI_WEB_DATA_DIR` changes. Stop the session daemon and back up the source and destination before moving archive data manually. The archive index stores absolute `archivePath` values, so update those values when archived files move to a different path.
 
 ### External path access
 
