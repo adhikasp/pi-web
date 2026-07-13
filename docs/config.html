@@ -525,24 +525,36 @@
               <h3><code>subsessions</code></h3>
               <p>
                 Boolean. Beta. Controls whether agents receive the tracked-subsession tools:
-                <code>spawn_subsession</code>, <code>list_subsessions</code>, <code>check_subsession</code>, and
-                <code>read_subsession</code>. Defaults to <code>false</code> and also requires <code>spawnSessions</code>
-                to be enabled.
+                <code>spawn_subsession</code>, <code>list_subsessions</code>, <code>check_subsession</code>,
+                <code>read_subsession</code>, and <code>yield_to_subsessions</code>. Defaults to <code>false</code> and also
+                requires <code>spawnSessions</code> to be enabled.
               </p>
               <p>
-                Tracked subsessions let an agent delegate work to child sessions, receive a notification when each child
-                stops working, and inspect their status and transcripts. Calling <code>spawn_subsession</code> returns
-                immediately. The parent can continue independent work while treating every child whose result it needs
-                as pending. Before producing work that depends on those results, the parent reaches a join point and
-                yields until every required child has sent a completion notice.
+                Tracked subsessions are join-oriented. Calling <code>spawn_subsession</code> returns immediately, so the
+                parent can continue independent work while the child runs. Work whose result the parent does not need to
+                join belongs in the fire-and-forget <code>spawn_session</code> tool instead.
               </p>
               <p>
-                A completion notice wakes an idle parent. If the parent is busy, the notice queues until the current
-                turn ends rather than interrupting in-flight work. For multiple required children, each notice resolves
-                one pending child; after processing it, the parent yields again if another required child is pending.
-                <code>list_subsessions</code>, <code>check_subsession</code>, and <code>read_subsession</code> provide
-                on-demand status and transcript inspection for deliberate progress checks or recovery. Completion
-                notifications, rather than polling these tools, are the normal synchronization mechanism.
+                At a join point, after finishing its independent work, the parent calls
+                <code>yield_to_subsessions</code> alone as the final action in its tool batch. Pi ends a tool batch early
+                only when every result in that batch is terminating. If any tracked child is still working, the action
+                ends the current agent run so the parent becomes idle. If none are working, it does not end the run and
+                clearly reports that there is nothing to wait for.
+              </p>
+              <p>
+                A completion notice automatically wakes an idle parent. If the parent is busy, the notice queues until
+                the current turn ends rather than interrupting in-flight work. When multiple children finish at
+                different times, the parent handles each completion and calls <code>yield_to_subsessions</code> again
+                while another child is still working.
+              </p>
+              <p>
+                <code>list_subsessions</code>, <code>check_subsession</code>, and <code>read_subsession</code> never yield
+                or change control flow and are not completion-polling mechanisms. They remain available for deliberate
+                inspection or recovery. While a child is working, agent-facing <code>check_subsession</code> and
+                <code>read_subsession</code> withhold partial output and transcript entries and instead direct the parent
+                to continue independent work or yield at the join point. Once the child is no longer working, its output
+                and transcript are available. Completion notifications, rather than polling inspection tools, are the
+                normal synchronization mechanism.
               </p>
               <p>
                 In <strong>Settings → Session daemon</strong>, these keys are saved on the selected machine. Restart the
