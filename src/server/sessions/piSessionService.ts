@@ -605,19 +605,7 @@ function createDefaultRuntimeFactory(
       ?? await sessionAllowsDelegationTools(sessionManager, sessionManagers);
     // Deferred sessionId – filled after createAgentSessionFromServices returns.
     const sessionIdHolder: { value: string } = { value: "" };
-    const customTools = createPiWebCustomToolDefinitions(cwd, resolvedDelegationToolsEnabled, spawn, subsessions, askQuestion === undefined ? undefined : (toolCallId, params) => askQuestion(sessionIdHolder.value, toolCallId, params));
-    const result = await createAgentSessionFromServices({
-      services,
-      sessionManager,
-      customTools,
-      ...(sessionStartEvent === undefined ? {} : { sessionStartEvent }),
-      ...(initialModel === undefined ? {} : { model: initialModel }),
-    });
-    // Deferred sessionId is now available.
-    sessionIdHolder.value = result.session.sessionManager.getSessionId();
-    return { ...result, services, diagnostics: services.diagnostics };
-  };
-}
+    const customTools = createPiWebCustomToolDefinitions(cwd, resolvedDelegationToolsEnabled, spawn, subsessions, askQuestion === undefined ? undefined : (_sessionId, toolCallId, params) => askQuestion(sessionIdHolder.value, toolCallId, params));
     const result = await createAgentSessionFromServices({
       services,
       sessionManager,
