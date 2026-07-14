@@ -120,6 +120,9 @@ export class ChatView extends LitElement {
     if (this.pinnedToBottom) this.scrollToBottom();
     else this.lastClientHeight = this.chat?.clientHeight ?? 0;
   };
+  private readonly onImageLoad = (): void => {
+    if (this.pinnedToBottom) this.scrollToBottom();
+  };
   private readonly onPageHide = () => {
     this.saveScrollPosition();
   };
@@ -500,7 +503,7 @@ export class ChatView extends LitElement {
         <small>read ${part.path}</small>
       </div>
     `;
-    if (part.type === "image") return html`<img class="part chat-image" src=${`data:${part.mimeType};base64,${part.data}`} alt="attached image" loading="lazy" />`;
+    if (part.type === "image") return html`<img class="part chat-image" src=${`data:${part.mimeType};base64,${part.data}`} alt="attached image" loading="lazy" @load=${this.onImageLoad} />`;
     if (part.type === "toolCall") return html`<div class="part tool-line">▶ ${part.toolName}<span class="summary">${part.summary}</span></div>`;
     if (part.type === "toolExecution") return html`<tool-execution-view class="part" .execution=${part}></tool-execution-view>`;
     if (part.type === "toolResult") return html`
