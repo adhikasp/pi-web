@@ -2425,6 +2425,7 @@ void this.refreshWorkspaceActivity(machineId);
         className: "navigation-tab",
         ...(unreadCount === 0 ? {} : { badge: unreadCount, badgeLabel: `${String(unreadCount)} unread`, badgeTone: "unread" }),
       },
+      { label: "New chat", icon: "new", className: "mobile-only-tab", onClick: () => { void this.startSessionAndOpenChat(); } },
       { id: "chat", label: "Chat", icon: "chat" },
       ...this.visibleWorkspacePanels().map((panel): AppMobileMainTab => {
         const icon = panel.icon ?? this.mobilePanelIcon(panel);
