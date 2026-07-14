@@ -1,5 +1,6 @@
 import { LitElement, html } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
+import { configApi, effectiveWorkspaceUploadFolder, piWebApi, sessionsApi, terminalsApi, workspacesApi, workspaceEffectiveUploadFolder, type AskUserQuestionResult, type Machine, type MachineHealth, type PiWebConfigValues, type PiWebShortcutConfig, type Project, type RealtimeEvent, type ScheduledTask, type ScheduledTaskCreateRequest, type SessionCleanupExecuteResponse, type SessionCleanupPreviewResponse, type SessionCleanupRequest, type SessionInfo, type SessionTreeNavigateResult, type SessionTreeSummaryChoice, type TerminalCommandRun, type TerminalUiEvent, type Workspace } from "../api";
 import { unreadSessionCount } from "./SessionList";
 import "./ScheduledTaskList";
 import "./ScheduledTaskDialog";
@@ -45,6 +46,7 @@ import { loadExternalPlugins } from "../plugins/external";
 import { PluginRegistry, installPluginRuntimeScope, installWorkspacePanelScope } from "../plugins/registry";
 import { queryNamespace, readNamespacedString, setNamespacedQueryKey } from "../namespacedQueryArgs";
 import { AppShellController } from "../appShell/appShellController";
+import { VisualViewportHeightController } from "../appShell/visualViewportHeight";
 import { BrowserResumeController } from "../appShell/browserResumeController";
 import { NavigationSectionsController, type NavigationSection } from "../appShell/navigationState";
 import { PanelCollapseController, mainViewClass } from "../appShell/panelCollapseController";
@@ -240,6 +242,7 @@ export class PiWebApp extends LitElement {
   });
   private readonly panelCollapse = new PanelCollapseController(this);
   private readonly panelResize = new PanelResizeController(this);
+  private readonly visualViewportHeight = new VisualViewportHeightController();
   private readonly navigationSections = new NavigationSectionsController(
     this,
     () => this.state,
@@ -414,6 +417,7 @@ private sessionWarningVisibility = initialSessionWarningVisibilityState();
     window.addEventListener("popstate", this.onPopState);
     window.addEventListener("pageshow", this.onPageShow);
     this.browserResume.connect();
+    this.visualViewportHeight.connect();
     window.addEventListener("keydown", this.onKeyDown, GLOBAL_SHORTCUT_LISTENER_OPTIONS);
     this.systemLightThemeMedia?.addEventListener("change", this.onSystemLightThemeChange);
     navigator.serviceWorker.addEventListener("message", this.onServiceWorkerMessage);
@@ -442,6 +446,7 @@ private sessionWarningVisibility = initialSessionWarningVisibilityState();
     window.removeEventListener("popstate", this.onPopState);
     window.removeEventListener("pageshow", this.onPageShow);
     this.browserResume.disconnect();
+    this.visualViewportHeight.disconnect();
     window.removeEventListener("keydown", this.onKeyDown, GLOBAL_SHORTCUT_LISTENER_OPTIONS);
     this.systemLightThemeMedia?.removeEventListener("change", this.onSystemLightThemeChange);
     navigator.serviceWorker.removeEventListener("message", this.onServiceWorkerMessage);
