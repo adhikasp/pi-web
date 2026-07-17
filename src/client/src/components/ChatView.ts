@@ -45,6 +45,23 @@ export function chatQueuedMessageSections(clientQueued: QueuedSessionMessage[], 
   ].filter((section): section is QueuedMessageSection => section !== undefined);
 }
 
+export type ChatImagePart = Extract<ChatPart, { type: "image" }>;
+
+/** Derive the `<img>` source URL and alt text for a rendered image part. */
+export function chatImagePartSource(part: ChatImagePart): { src: string; alt: string } {
+  return { src: `data:${part.mimeType};base64,${part.data}`, alt: "attached image" };
+}
+
+/** The message-header label used when a tool message renders as an image output. */
+export function chatToolOutputLabel(toolName?: string): string {
+  return toolName === undefined || toolName === "" ? "tool output" : `${toolName} output`;
+}
+
+/** The stable scroll-anchor/render key for a top-level message at `index`. */
+export function chatMessageAnchorKey(index: number): string {
+  return `m:${String(index)}`;
+}
+
 export function chatMessageMetadataLabel(message: ChatLine): string {
   const timestamp = message.meta?.timestamp;
   const time = timestamp === undefined ? undefined : formatMessageTimestamp(timestamp);
@@ -436,7 +453,7 @@ export class ChatView extends LitElement {
   }
 
   private renderToolImageOutput(message: ChatLine, index: number, toolName?: string) {
-    const label = toolName === undefined || toolName === "" ? "tool output" : `${toolName} output`;
+    const label = chatToolOutputLabel(toolName);
     return html`
       ${this.renderScrollMarker(this.messageScrollMarkerId(index))}
       <article class="msg tool-image-output" data-index=${index} data-scroll-anchor-id=${this.messageAnchorKey(index)}>
@@ -570,8 +587,7 @@ export class ChatView extends LitElement {
       </div>
     `;
     if (part.type === "image") {
-      const src = `data:${part.mimeType};base64,${part.data}`;
-      const alt = "attached image";
+      const { src, alt } = chatImagePartSource(part);
       return html`<img class="part chat-image" src=${src} alt=${alt} loading="lazy" role="button" tabindex="0" title="Click to enlarge" @load=${this.onImageLoad} @click=${() => { this.openImageZoom(src, alt); }} @keydown=${(event: KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); this.openImageZoom(src, alt); } }} />`;
     }
     if (part.type === "toolCall") return html`<div class="part tool-line">▶ ${part.toolName}<span class="summary">${part.summary}</span></div>`;
@@ -874,7 +890,7 @@ export class ChatView extends LitElement {
   }
 
   private messageAnchorKey(index: number): string {
-    return `m:${String(index)}`;
+    return chatMessageAnchorKey(index);
   }
 
   private groupRenderKey(startIndex: number): string {
@@ -890,7 +906,7 @@ export class ChatView extends LitElement {
   }
 
   private messageScrollMarkerId(index: number): string {
-    return `m:${String(index)}`;
+    return chatMessageAnchorKey(index);
   }
 
   private groupScrollMarkerId(endIndex: number): string {
