@@ -1158,7 +1158,7 @@ export class PiSessionService implements SessionRouteService {
 
   async availableModels(ref: PiSessionLookup): Promise<ClientSessionModel[]> {
     const session = await this.getOrOpen(ref);
-    await session.modelRuntime.refresh();
+    await session.modelRuntime.reloadConfig();
     const models = session.scopedModels.length > 0
       ? session.scopedModels.map((scoped) => scoped.model)
       : session.modelRuntime.getAvailableSnapshot();
@@ -1168,7 +1168,7 @@ export class PiSessionService implements SessionRouteService {
   async setModel(ref: PiSessionLookup, provider: string, modelId: string): Promise<ClientSessionStatus> {
     await this.assertWritable(ref);
     const session = await this.getOrOpen(ref);
-    await session.modelRuntime.refresh();
+    await session.modelRuntime.reloadConfig();
     const candidates = session.scopedModels.length > 0
       ? session.scopedModels.map((scoped) => scoped.model)
       : session.modelRuntime.getAvailableSnapshot();
@@ -2019,9 +2019,9 @@ export class PiSessionService implements SessionRouteService {
   }
 
   applyAuthChange(change: AuthChange = {}): void {
-    // The shared model runtime is refreshed by AuthService before it emits the
-    // change (and every session shares that runtime), so no refresh is needed
-    // here — this keeps the subscribe callback synchronous.
+    // ModelRuntime.login()/logout() refresh the shared runtime before AuthService
+    // emits the change, so no refresh is needed here. Keeping this synchronous
+    // also lets every active session observe the same committed auth snapshot.
     for (const active of this.active.values()) {
       const { session } = active.runtime;
       this.syncCurrentModelAuthWarning(session, change.removedProviderId);

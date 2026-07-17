@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -15,22 +15,28 @@ afterEach(async () => {
 });
 
 describe("AuthService", () => {
-  it("saves API keys and emits a global auth change", async () => {
-    const { auth, credentials, changes } = await createAuthService();
+  it("saves API keys and emits a global auth change after the runtime refreshes", async () => {
+    const { auth, runtime, credentials, changes } = await createAuthService();
+    const reloadConfig = vi.spyOn(runtime, "reloadConfig").mockResolvedValue(undefined);
+    const refresh = vi.spyOn(runtime, "refresh");
 
     await expect(auth.saveApiKey("anthropic", "sk-test")).resolves.toEqual({ accepted: true });
 
     await expect(credentials.read("anthropic")).resolves.toEqual({ type: "api_key", key: "sk-test" });
+    expect(reloadConfig).toHaveBeenCalledOnce();
+    expect(refresh).toHaveBeenCalledOnce();
     expect(changes).toEqual([{}]);
     auth.dispose();
   });
 
-  it("logs out providers and emits the removed provider id", async () => {
-    const { auth, credentials, changes } = await createAuthService({ anthropic: { type: "api_key", key: "sk-test" } });
+  it("logs out providers and emits the removed provider id after the runtime refreshes", async () => {
+    const { auth, runtime, credentials, changes } = await createAuthService({ anthropic: { type: "api_key", key: "sk-test" } });
+    const refresh = vi.spyOn(runtime, "refresh");
 
     await expect(auth.logoutProvider("anthropic")).resolves.toEqual({ accepted: true });
 
     await expect(credentials.read("anthropic")).resolves.toBeUndefined();
+    expect(refresh).toHaveBeenCalledOnce();
     expect(changes).toEqual([{ removedProviderId: "anthropic" }]);
     auth.dispose();
   });
@@ -164,6 +170,37 @@ describe("AuthService", () => {
     auth.dispose();
   });
 
+  it("reloads models.json before enumerating and validating OAuth providers", async () => {
+    const agentDir = await tempAgentDir();
+    const modelsPath = join(agentDir, "models.json");
+    const runtime = await ModelRuntime.create({
+      credentials: new InMemoryCredentialStore(),
+      modelsPath,
+      allowModelNetwork: false,
+    });
+    const authFlows = new CapturingOAuthLoginFlowService();
+    const auth = await AuthService.create({ runtime, authFlows });
+
+    await writeFile(modelsPath, radiusModelsConfig("First Radius"));
+    const response = await auth.authProviders("login", "oauth");
+    expect(response.providers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "test-radius", name: "First Radius", authType: "oauth" }),
+    ]));
+
+    await writeFile(modelsPath, radiusModelsConfig("Updated Radius"));
+    await expect(auth.startOAuthLogin("test-radius")).resolves.toMatchObject({
+      providerId: "test-radius",
+      providerName: "Updated Radius",
+      status: "running",
+    });
+    expect(authFlows.startCalls.at(0)).toMatchObject({
+      providerId: "test-radius",
+      providerName: "Updated Radius",
+      runtime,
+    });
+    auth.dispose();
+  });
+
   it("stores credentials in the configured agent directory", async () => {
     const agentDir = await tempAgentDir();
     const auth = await AuthService.create({ agentDir });
@@ -174,7 +211,7 @@ describe("AuthService", () => {
     auth.dispose();
   });
 
-  it("refreshes auth state after OAuth login completes", async () => {
+  it("emits an auth change after OAuth login completes without refreshing twice", async () => {
     const runtime = await ModelRuntime.create({
       credentials: new InMemoryCredentialStore(),
       modelsPath: null,
@@ -202,7 +239,7 @@ describe("AuthService", () => {
     startOptions.onComplete();
     await vi.waitFor(() => { expect(changes).toEqual([{}]); });
 
-    expect(refresh).toHaveBeenCalledOnce();
+    expect(refresh).not.toHaveBeenCalled();
     auth.dispose();
     expect(authFlows.disposed).toBe(true);
   });
@@ -239,6 +276,18 @@ async function tempAgentDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "pi-web-auth-agent-"));
   tempDirs.push(dir);
   return dir;
+}
+
+function radiusModelsConfig(name: string): string {
+  return JSON.stringify({
+    providers: {
+      "test-radius": {
+        name,
+        baseUrl: "https://radius.example.test/v1",
+        oauth: "radius",
+      },
+    },
+  });
 }
 
 class CapturingOAuthLoginFlowService extends OAuthLoginFlowService {

@@ -50,7 +50,7 @@ export class AuthService {
   }
 
   async authProviders(mode: "login" | "logout", authType?: AuthType): Promise<AuthProvidersResponse> {
-    await this.runtime.refresh();
+    await this.runtime.reloadConfig();
     const providers = mode === "logout" ? await getLogoutProviderOptions(this.runtime) : getLoginProviderOptions(this.runtime, authType);
     return { providers };
   }
@@ -74,13 +74,13 @@ export class AuthService {
       notify: () => undefined,
     };
     await this.runtime.login(providerId, "api_key", interaction);
-    await this.refreshAuthState();
+    this.emit({});
     return { accepted: true };
   }
 
   async logoutProvider(providerId: string): Promise<{ accepted: true }> {
     await this.runtime.logout(providerId);
-    await this.refreshAuthState({ removedProviderId: providerId });
+    this.emit({ removedProviderId: providerId });
     return { accepted: true };
   }
 
@@ -91,7 +91,7 @@ export class AuthService {
       providerName: provider.name,
       runtime: this.runtime,
       onComplete: () => {
-        void this.refreshAuthState();
+        this.emit({});
       },
     });
   }
@@ -108,17 +108,12 @@ export class AuthService {
     return this.authFlows.cancel(flowId);
   }
 
-  private async refreshAuthState(change: AuthChange = {}): Promise<void> {
-    await this.runtime.refresh();
-    this.emit(change);
-  }
-
   private emit(change: AuthChange): void {
     for (const listener of this.listeners) listener(change);
   }
 
   private async requireApiKeyLoginProvider(providerId: string) {
-    await this.runtime.refresh();
+    await this.runtime.reloadConfig();
     const provider = getLoginProviderOptions(this.runtime, "api_key").find((option) => option.id === providerId);
     if (provider !== undefined) return provider;
 
@@ -130,7 +125,7 @@ export class AuthService {
   }
 
   private async requireOAuthLoginProvider(providerId: string) {
-    await this.runtime.refresh();
+    await this.runtime.reloadConfig();
     const provider = getLoginProviderOptions(this.runtime, "oauth").find((option) => option.id === providerId);
     if (provider === undefined) throw new Error(`OAuth provider not found: ${providerId}`);
     return provider;
