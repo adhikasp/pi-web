@@ -62,6 +62,58 @@ export function chatMessageAnchorKey(index: number): string {
   return `m:${String(index)}`;
 }
 
+/** The stable scroll-anchor/render key for a collapsed event group starting at `startIndex`. */
+export function chatGroupAnchorKey(startIndex: number): string {
+  return `g:${String(startIndex)}`;
+}
+
+/** The stable scroll-anchor key for an event inside a group at `index`. */
+export function chatEventAnchorKey(index: number): string {
+  return `e:${String(index)}`;
+}
+
+/** The stable scroll-marker id emitted before an event group ending at `endIndex`. */
+export function chatGroupScrollMarkerId(endIndex: number): string {
+  return `g:${String(endIndex)}`;
+}
+
+/** The CSS class list for an event-group `<details>`, distinguishing the live tail. */
+export function chatMessageGroupClassName(defaultOpen: boolean): string {
+  return defaultOpen ? "msg event-group live" : "msg event-group";
+}
+
+/** The disclosure summary label for an event group, distinguishing the live tail. */
+export function chatMessageGroupLabel(defaultOpen: boolean): string {
+  return defaultOpen ? "live events" : "events";
+}
+
+/** Whether a queued-message section shows the server clear-queue action. */
+export function chatQueuedSectionShowsClearAction(section: QueuedMessageSection, canClearServerQueue: boolean, hasClearHandler: boolean): boolean {
+  return section.source === "server" && canClearServerQueue && hasClearHandler;
+}
+
+/** A rendered session-warning row derived from live status warnings. */
+export interface ChatSessionWarningRow {
+  severity: SessionWarningSeverity;
+  severityClass: string;
+  message: string;
+  source?: string;
+  path?: string;
+  dismissId?: string;
+}
+
+/** Derive one severity-tagged warning row per live status warning, in order. */
+export function chatSessionWarningRows(status: SessionStatus | undefined): ChatSessionWarningRow[] {
+  return (status?.warnings ?? []).map((warning) => ({
+    severity: warning.severity,
+    severityClass: `session-warning ${warning.severity}`,
+    message: warning.message,
+    ...(warning.source === undefined ? {} : { source: warning.source }),
+    ...(warning.path === undefined ? {} : { path: warning.path }),
+    ...(warning.dismiss === undefined ? {} : { dismissId: warning.dismiss.id }),
+  }));
+}
+
 export function chatMessageMetadataLabel(message: ChatLine): string {
   const timestamp = message.meta?.timestamp;
   const time = timestamp === undefined ? undefined : formatMessageTimestamp(timestamp);
@@ -256,29 +308,29 @@ export class ChatView extends LitElement {
   }
 
   private renderWarnings() {
-    const warnings = this.status?.warnings ?? [];
-    if (warnings.length === 0) return null;
+    const rows = chatSessionWarningRows(this.status);
+    if (rows.length === 0) return null;
     return html`
       <aside class="session-warnings" role="alert" aria-live="polite">
-        ${warnings.map((warning) => {
-          const dismiss = warning.dismiss;
+        ${rows.map((row) => {
+          const dismissId = row.dismissId;
           return html`
-          <div class=${`session-warning ${warning.severity}`}>
+          <div class=${row.severityClass}>
             <div class="session-warning-head">
-              <span class="session-warning-icon" aria-hidden="true">${warningSeverityIcon(warning.severity)}</span>
-              ${warning.source === undefined ? null : html`<span class="session-warning-source">${warning.source}</span>`}
+              <span class="session-warning-icon" aria-hidden="true">${warningSeverityIcon(row.severity)}</span>
+              ${row.source === undefined ? null : html`<span class="session-warning-source">${row.source}</span>`}
             </div>
             <div class="session-warning-body">
-              <p class="session-warning-message">${warning.message}</p>
-              ${warning.path === undefined ? null : html`<p class="session-warning-path">${warning.path}</p>`}
+              <p class="session-warning-message">${row.message}</p>
+              ${row.path === undefined ? null : html`<p class="session-warning-path">${row.path}</p>`}
             </div>
-            ${dismiss === undefined ? null : html`
+            ${dismissId === undefined ? null : html`
               <button
                 type="button"
                 class="session-warning-dismiss"
                 title="Don't show this warning again"
                 aria-label="Dismiss warning"
-                @click=${() => { this.onDismissWarning?.(dismiss.id); }}
+                @click=${() => { this.onDismissWarning?.(dismissId); }}
               >×</button>
             `}
           </div>
@@ -345,7 +397,7 @@ export class ChatView extends LitElement {
   }
 
   private renderQueuedMessageList(section: QueuedMessageSection) {
-    const canClear = section.source === "server" && this.canClearServerQueue && this.onClearServerQueue !== undefined;
+    const canClear = chatQueuedSectionShowsClearAction(section, this.canClearServerQueue, this.onClearServerQueue !== undefined);
     return html`
       <aside class="queued-messages" aria-live="polite">
         <div class="queued-header">
@@ -472,9 +524,9 @@ export class ChatView extends LitElement {
     const open = this.disclosures.isOpen(disclosureKey, defaultOpen);
     return html`
       ${this.renderScrollMarker(this.groupScrollMarkerId(endIndex))}
-      <details class=${defaultOpen ? "msg event-group live" : "msg event-group"} data-index=${startIndex} data-scroll-anchor-id=${this.groupAnchorKey(startIndex)} ?open=${open} @toggle=${(event: Event) => { this.onGroupToggle(disclosureKey, event, defaultOpen); }}>
+      <details class=${chatMessageGroupClassName(defaultOpen)} data-index=${startIndex} data-scroll-anchor-id=${this.groupAnchorKey(startIndex)} ?open=${open} @toggle=${(event: Event) => { this.onGroupToggle(disclosureKey, event, defaultOpen); }}>
         <summary>
-          <b class="label">${defaultOpen ? "live events" : "events"}</b>
+          <b class="label">${chatMessageGroupLabel(defaultOpen)}</b>
           <span>${summarizeChatGroup(messages)}</span>
         </summary>
         ${open ? this.renderMessageGroupBody(messages, startIndex) : null}
@@ -894,15 +946,15 @@ export class ChatView extends LitElement {
   }
 
   private groupRenderKey(startIndex: number): string {
-    return `g:${String(startIndex)}`;
+    return chatGroupAnchorKey(startIndex);
   }
 
   private groupAnchorKey(startIndex: number): string {
-    return `g:${String(startIndex)}`;
+    return chatGroupAnchorKey(startIndex);
   }
 
   private eventAnchorKey(index: number): string {
-    return `e:${String(index)}`;
+    return chatEventAnchorKey(index);
   }
 
   private messageScrollMarkerId(index: number): string {
@@ -910,7 +962,7 @@ export class ChatView extends LitElement {
   }
 
   private groupScrollMarkerId(endIndex: number): string {
-    return `g:${String(endIndex)}`;
+    return chatGroupScrollMarkerId(endIndex);
   }
 
   static override styles = chatStyles;
