@@ -1,6 +1,31 @@
 # Relay status — issue-62-authstorage
 
 ## Current position
+Slice 3 (`oauthLoginFlowService.ts` migration) complete and committed (`1c3d6db`).
+`OAuthLoginFlowService` is reimplemented against the pi-ai `AuthInteraction`
+contract (`{ signal?, prompt(AuthPrompt), notify(AuthEvent) }`); the old
+`OAuthLoginCallbacks`/`AuthStorage` imports are gone. `start()` now takes a
+`ModelRuntime` (narrowed to `Pick<ModelRuntime, "login">`) instead of
+`authStorage`, and drives login via `runtime.login(providerId, "oauth",
+interaction)`. Mapping: `AuthPrompt` `text`/`secret`/`manual_code` → web-UI
+`prompt` (kind `prompt`, `manual_code` → kind `manual`); `select` → web-UI
+`select` (options `{id,label}` → `{value,label}`, returns chosen id);
+`AuthEvent` `auth_url` → `auth: {url, instructions?}`; `device_code` → reuse
+`auth` field (`url: verificationUri`, `instructions: "Enter code: <userCode>"`);
+`info`/`progress` → append `message` to `progress`. Per-prompt
+`AuthPrompt.signal` now aborts just that pending request (rejects
+`"Prompt cancelled"`) without ending the overall flow — needed because a
+`manual_code` prompt can race a callback server. `oauthLoginFlowService.test.ts`
+rewritten to the new contract via a `fakeRuntime` login double; **9 tests pass**,
+files lint clean.
+
+`npx tsc --noEmit` now reports **26 errors** (down from 28). `authService.ts`
+is now at **0 errors** (as predicted). Remaining errors are all slice 4/5:
+`sessiond.ts` (1) + `piSessionService.ts` (6) = slice 4;
+`authService.test.ts` (10), `piSessionService.testSupport.ts` (3),
+`.promptQueue.test.ts` (2), `.warnings.test.ts` (4) = slice 5.
+
+### Prior position (slice 2, leg 3, commit `d09d7cc`)
 Slice 2 (`authProviderOptions.ts` migration) complete and committed (`d09d7cc`).
 `authProviderOptions.ts` now derives options from a runtime-shaped
 `AuthProviderRuntime` interface (`getProviders()` + `listCredentials()` +
@@ -51,40 +76,34 @@ Remaining errors otherwise live in slices 2/3/4 files and all test/support
 files (slice 5).
 
 ## Leg tracking
-- **Last completed leg:** 3 (slice 2 — authProviderOptions.ts migration).
-- **Next leg to run:** 4.
+- **Last completed leg:** 4 (slice 3 — oauthLoginFlowService.ts migration).
+- **Next leg to run:** 5.
 
 ## Next task
-Run **charter slice 3 (`oauthLoginFlowService.ts` migration)** as leg 4. This
-is the riskiest slice — verify the prompt/select/device-code/auth_url mapping
-carefully. Concretely:
-- Reimplement `oauthLoginFlowService.ts` against the pi-ai `AuthInteraction`
-  contract (`{ signal?, prompt(prompt: AuthPrompt): Promise<string>,
-  notify(event: AuthEvent): void }`) instead of the removed
-  `OAuthLoginCallbacks` shape (`onAuth`/`onDeviceCode`/`onPrompt`/
-  `onManualCodeInput`/`onSelect`/`onProgress`). Types live in
-  `node_modules/@earendil-works/pi-ai/dist/auth/types.d.ts`.
-- `AuthPrompt` is a discriminated union: `text` / `secret` / `select`
-  (`options: { id, label, description? }[]`, returns the chosen option id) /
-  `manual_code`. `AuthEvent` is `info` / `auth_url` (`{ url, instructions? }`)
-  / `device_code` (`{ userCode, verificationUri, intervalSeconds?,
-  expiresInSeconds? }`) / `progress`. Map these onto the existing web-UI flow
-  state fields (see the current `oauthLoginFlowService.ts` prompt/select/
-  device-code/auth_url handling).
-- Change `OAuthLoginFlowService.start` to accept `runtime` (the
-  `ModelRuntime`) instead of `authStorage`, and drive login via
-  `runtime.login(providerId, "oauth", interaction)` where `interaction` is the
-  adapter you build. `authService.ts` already calls
-  `OAuthLoginFlowService.start({ ..., runtime: this.runtime })` (this is the
-  line-83 tsc error). Also update `oauthLoginFlowService.test.ts`.
-- After slice 3, `authService.ts` should reach 0 errors. `sessiond.ts` +
-  `piSessionService.ts` (slice 4) and the remaining test/support files
-  (slice 5) stay until their slices.
+Run **charter slice 4 (`piSessionService.ts` migration)** as leg 5. Concretely
+(see assessment §5.4 and §3.3):
+- Pass `modelRuntime` to `createAgentSessionServices` (instead of the old
+  `modelRegistry`); update the `PiAgentSession` type accordingly.
+- `sessiond.ts` already passes `modelRuntime: auth.runtime` into
+  `PiSessionService` (from slice 1) but `PiSessionServiceDependencies` still
+  declares `modelRegistry` — reconcile the dependency shape so the sessiond
+  wiring typechecks (this is the remaining `sessiond.ts` error).
+- Switch `anthropicSubscriptionWarning` to `readStoredCredential(providerId,
+  authPath?)` (the sync credential read replacing the old AuthStorage-based
+  read).
+- Target: after slice 4, `sessiond.ts` and `piSessionService.ts` reach 0
+  errors; only the test/support files (slice 5) remain.
+- **Note:** `piSessionService.ts` is a session-daemon path — keep the
+  sessiond-restart-pending note current (it is already active from slice 1).
 
-If slice 3 is already done when you arrive, apply the charter's task-selection
-policy: pick the lowest-numbered incomplete slice (4 → 6). Slice 4 unblocks the
-remaining `sessiond.ts` / `piSessionService.ts` cross-slice errors; slice 5
-finalizes tests; slice 6 adds the changeset + final verify.
+Then slice 5 migrates all test doubles to `InMemoryCredentialStore` +
+`ModelRuntime.create` and gets `npm run verify` green (currently the failing
+test/support files are `authService.test.ts` (10), `piSessionService.testSupport.ts`
+(3), `.promptQueue.test.ts` (2), `.warnings.test.ts` (4)); slice 6 adds the
+changeset + final verify + cleanup.
+
+If slice 4 is already done when you arrive, apply the charter's task-selection
+policy: pick the lowest-numbered incomplete slice (5 → 6).
 
 ### Build/tooling note (important for every leg)
 **Update (leg 2):** the human reports `/tmp` is now fully usable again, so the

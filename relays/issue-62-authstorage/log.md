@@ -213,3 +213,53 @@ ts`(6) slice 4; test/support files slice 5.
 
 **Handoff:** spawning leg 4 (slice 3, oauthLoginFlowService.ts). Sessiond
 restart from leg 2 still pending — carried forward, not cleared.
+
+## Leg 4 — slice 3: oauthLoginFlowService.ts migration (commit `1c3d6db`)
+
+**What:** Reimplemented `OAuthLoginFlowService` against the pi-ai
+`AuthInteraction` contract and rewrote its test.
+
+- `start()` now takes `runtime: Pick<ModelRuntime, "login">` instead of
+  `authStorage: Pick<AuthStorage, "login">`; login driven via
+  `runtime.login(providerId, "oauth", interaction)`. Resolves the
+  `authService.ts` line-83 tsc error (authService.ts now at 0 errors).
+- Built a single `AuthInteraction` adapter (`{ signal, prompt, notify }`)
+  replacing the six `OAuthLoginCallbacks` (`onAuth`/`onDeviceCode`/`onPrompt`/
+  `onManualCodeInput`/`onSelect`/`onProgress`).
+- **Mapping decisions (verified carefully — riskiest slice):**
+  - `prompt(AuthPrompt)` dispatches on `type`: `select` → `waitForSelect`
+    (options `{id,label,description?}` → CommandOption `{value:id,label}`,
+    resolves chosen id); `manual_code` → web-UI prompt kind `manual`;
+    `text`/`secret` → web-UI prompt kind `prompt`. Old code special-cased
+    `onManualCodeInput` with a hardcoded message; now the provider supplies the
+    `manual_code` message, which is more correct.
+  - `notify(AuthEvent)`: `auth_url` → `auth:{url,instructions?}`; `device_code`
+    → reuse `auth` field (`url: verificationUri`, instructions
+    `"Enter code: <userCode>"`) exactly as the old `onDeviceCode` did;
+    `info`+`progress` → append `message` to `progress` (old code only had
+    `onProgress`; `info` folds in naturally).
+  - Old `OAuthPrompt.allowEmpty`/`placeholder` handling: the new `AuthPrompt`
+    has no `allowEmpty`, so interactive prompts are always required
+    (`allowEmpty:false`); `select` keeps `allowEmpty:true`. Placeholder still
+    forwarded when present.
+- **New behavior:** per-prompt `AuthPrompt.signal` now aborts just that pending
+  request (rejects `"Prompt cancelled"`, clears the interaction from state)
+  without ending the overall flow — the documented `manual_code`-vs-callback
+  race. Added `bindPromptSignal` + a dedicated test for it.
+- **Test:** rewrote `oauthLoginFlowService.test.ts` with a `fakeRuntime`
+  `login` double (returns a stub oauth credential). Replaced the old
+  device-code-via-onDeviceCode coverage with an explicit `notify` device_code
+  test and a per-prompt-signal-abort test. 9 tests pass; both files lint clean.
+
+**tsc:** 28 → 26 errors. `authService.ts` = 0. Remaining: slice 4
+(`sessiond.ts` 1, `piSessionService.ts` 6) and slice 5 test/support files
+(`authService.test.ts` 10, `.testSupport.ts` 3, `.promptQueue.test.ts` 2,
+`.warnings.test.ts` 4).
+
+**Status:** updated (current position, leg tracking → last leg 4 / next leg 5,
+next task = slice 4). Committed with `--no-verify` (migration not yet
+verify-green, per charter).
+
+**Blockers:** none. Sessiond-restart-pending note still ACTIVE (unchanged;
+this slice did not touch the daemon path, but slice 1 did). Handing off to
+leg 5 (slice 4).
