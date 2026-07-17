@@ -57,11 +57,20 @@ export class AuthService {
 
   async saveApiKey(providerId: string, key: string): Promise<{ accepted: true }> {
     if (key.trim() === "") throw new Error("API key is required");
-    // The provider's api-key login prompts for the key and persists the returned
-    // credential through the runtime's credential store; feed the key back via a
-    // non-interactive AuthInteraction.
+    const provider = await this.requireApiKeyLoginProvider(providerId);
+    let promptAttempted = false;
     const interaction: AuthInteraction = {
-      prompt: () => Promise.resolve(key),
+      prompt: (prompt) => {
+        if (promptAttempted) {
+          throw new Error(`${provider.name} requires interactive setup; use Pi's generic /login flow`);
+        }
+        promptAttempted = true;
+        if (prompt.signal?.aborted === true) throw new Error("Login cancelled");
+        if (prompt.type !== "secret") {
+          throw new Error(`${provider.name} requires interactive setup; use Pi's generic /login flow`);
+        }
+        return Promise.resolve(key);
+      },
       notify: () => undefined,
     };
     await this.runtime.login(providerId, "api_key", interaction);
@@ -106,6 +115,18 @@ export class AuthService {
 
   private emit(change: AuthChange): void {
     for (const listener of this.listeners) listener(change);
+  }
+
+  private async requireApiKeyLoginProvider(providerId: string) {
+    await this.runtime.refresh();
+    const provider = getLoginProviderOptions(this.runtime, "api_key").find((option) => option.id === providerId);
+    if (provider !== undefined) return provider;
+
+    const knownProvider = this.runtime.getProviders().find((option) => option.id === providerId);
+    if (knownProvider !== undefined) {
+      throw new Error(`${knownProvider.name} does not support interactive API-key setup`);
+    }
+    throw new Error(`API key provider not found: ${providerId}`);
   }
 
   private async requireOAuthLoginProvider(providerId: string) {

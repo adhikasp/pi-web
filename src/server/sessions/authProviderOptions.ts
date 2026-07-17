@@ -4,7 +4,7 @@ import type { AuthProviderOption, AuthProviderStatus, AuthType } from "../../sha
 interface AuthProviderInfo {
   id: string;
   name: string;
-  auth: { apiKey?: unknown; oauth?: unknown };
+  auth: { apiKey?: { login?: unknown }; oauth?: unknown };
 }
 
 /** Non-secret stored-credential metadata, keyed by provider id. */
@@ -40,7 +40,7 @@ export function getLoginProviderOptions(runtime: AuthProviderRuntime, authType?:
   }
 
   for (const provider of providers) {
-    if (provider.auth.apiKey === undefined) continue;
+    if (provider.auth.apiKey?.login === undefined) continue;
     options.push({
       id: provider.id,
       name: provider.name,

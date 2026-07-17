@@ -4,13 +4,15 @@ import { getLoginProviderOptions, getLogoutProviderOptions, type AuthProviderRun
 function runtime(): AuthProviderRuntime {
   const credentials = [{ providerId: "openai", type: "api_key" as const }];
   // Auth shapes mirror what the Pi SDK actually reports for these providers:
-  // github-copilot supports both methods, openai-codex is oauth-only.
+  // github-copilot supports both methods, openai-codex is OAuth-only, and
+  // ambient providers resolve credentials without offering interactive login.
   const providers = [
-    { id: "anthropic", name: "Anthropic", auth: { oauth: {}, apiKey: {} } },
-    { id: "github-copilot", name: "GitHub Copilot", auth: { oauth: {}, apiKey: {} } },
+    { id: "anthropic", name: "Anthropic", auth: { oauth: {}, apiKey: { login: () => undefined } } },
+    { id: "github-copilot", name: "GitHub Copilot", auth: { oauth: {}, apiKey: { login: () => undefined } } },
     { id: "openai-codex", name: "ChatGPT Plus/Pro (Codex Subscription)", auth: { oauth: {} } },
-    { id: "openai", name: "OpenAI", auth: { apiKey: {} } },
-    { id: "custom", name: "Custom", auth: { apiKey: {} } },
+    { id: "openai", name: "OpenAI", auth: { apiKey: { login: () => undefined } } },
+    { id: "custom", name: "Custom", auth: { apiKey: { login: () => undefined } } },
+    { id: "ambient", name: "Ambient credentials", auth: { apiKey: {} } },
   ];
   return {
     getProviders: () => providers,
@@ -20,7 +22,7 @@ function runtime(): AuthProviderRuntime {
 }
 
 describe("auth provider options", () => {
-  it("offers both api-key and oauth login options for every provider the backend supports each method for", () => {
+  it("offers each interactive login method reported by the backend", () => {
     const options = getLoginProviderOptions(runtime());
     expect(options).toEqual(expect.arrayContaining([
       // Dual-capable providers surface both login methods, driven purely by SDK data.
@@ -36,6 +38,7 @@ describe("auth provider options", () => {
     ]));
     expect(options).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: "openai-codex", authType: "api_key" })]));
     expect(options).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: "openai", authType: "oauth" })]));
+    expect(options).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: "ambient", authType: "api_key" })]));
   });
 
   it("returns only currently stored credentials for logout", async () => {
