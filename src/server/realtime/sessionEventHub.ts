@@ -5,6 +5,7 @@ export interface RealtimeSocket {
   readonly OPEN: number;
   readyState: number;
   send(payload: string): void;
+  terminate(): void;
   on(event: "close", listener: () => void): unknown;
 }
 
@@ -64,6 +65,11 @@ export class SessionEventHub {
         socket.send(payload);
       } catch {
         sockets.delete(socket);
+        try {
+          socket.terminate();
+        } catch {
+          // Removal is authoritative; cleanup failure must not block healthy sockets.
+        }
       }
     }
   }
