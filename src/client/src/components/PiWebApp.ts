@@ -22,6 +22,7 @@ import { SessionStorageTerminalSelectionMemory } from "../controllers/terminalSe
 import { SessionStorageWorkspaceSelectionMemory } from "../controllers/workspaceSelection";
 import { KeyboardShortcutDispatcher } from "../keyboardShortcuts";
 import { selectedMachineId } from "../controllers/types";
+import { machineSessionKey } from "../machineKeys";
 import { sessionCleanupRequestKey, sessionCleanupUnavailableMessage } from "../sessionCleanupUi";
 import { selectedNotificationView } from "../sessionNotifications";
 import { hasAuthoritativeSessionPersistence as runtimeHasAuthoritativeSessionPersistence } from "../sessionPersistence";
@@ -255,10 +256,11 @@ export class PiWebApp extends LitElement {
   }
 
   private syncSessionWarningVisibility(): void {
+    const session = this.state.selectedSession;
     this.sessionWarningVisibility = reconcileSessionWarningVisibility(
       this.sessionWarningVisibility,
-      this.state.selectedSession?.id,
-      this.state.status?.warnings,
+      session === undefined ? undefined : machineSessionKey(selectedMachineId(this.state), session.id),
+      this.state.status === undefined ? undefined : this.state.status.warnings ?? [],
     );
   }
 
