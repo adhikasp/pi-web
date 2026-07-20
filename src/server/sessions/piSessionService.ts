@@ -33,7 +33,7 @@ import { deterministicSessionName, fallbackSessionName, generateShortSessionName
 import { computeEditPreview, type EditPreviewResult } from "./editPreview.js";
 import { attachmentsToInlineImages, saveAttachmentsToWorkspace } from "./attachmentService.js";
 import { parsePromptAttachments } from "../../shared/promptAttachments.js";
-import { SESSION_TREE_CUSTOM_INSTRUCTIONS_MAX_LENGTH } from "../../shared/apiTypes.js";
+import { SESSION_TREE_CUSTOM_INSTRUCTIONS_MAX_LENGTH, SESSION_UNREAD_LIMIT } from "../../shared/apiTypes.js";
 import type {
   SavedPromptAttachment,
   SessionBulkArchiveResponse,
@@ -45,6 +45,8 @@ import type {
   SessionNotificationDismissAllRequest,
   SessionNotificationDismissRequest,
   SessionNotificationInboxSnapshot,
+  SessionUnreadAcknowledgeRequest,
+  SessionUnreadCatalogSnapshot,
   SessionWarning,
 } from "../../shared/apiTypes.js";
 import type { SessionRouteLookup, SessionRouteRef, SessionRouteService } from "./sessionService.js";
@@ -63,6 +65,7 @@ import {
   type SessionNotificationMutation,
 } from "./sessionNotificationStore.js";
 import { plainTextTheme } from "./plainTextTheme.js";
+import { SessionUnreadStore, type SessionUnreadMutation } from "./sessionUnreadStore.js";
 
 /**
  * Minimal structured-logging seam, shaped like Fastify's logger so sessiond can
@@ -74,6 +77,9 @@ export interface PiSessionLogger {
 }
 
 const noopLogger: PiSessionLogger = { info() { /* no-op */ } };
+const DEFAULT_UNREAD_PUBLICATION_RETRY_MS = 1_000;
+const MAX_UNREAD_PUBLICATION_RETRY_MS = 30_000;
+const MAX_PENDING_UNREAD_MUTATIONS = SESSION_UNREAD_LIMIT + 1;
 
 function noop(): void {
   // Intentionally empty default unsubscribe callback.
@@ -648,6 +654,10 @@ export interface PiSessionServiceDependencies {
   now?: () => Date;
   /** Daemon-lifetime notification state, injected by sessiond in production. */
   notificationStore?: SessionNotificationStore;
+  /** Durable daemon-owned unread state; defaults to an in-memory store in tests. */
+  unreadStore?: SessionUnreadStore;
+  /** Initial retry delay for durable unread publication failures. */
+  unreadPublicationRetryDelayMs?: number;
 }
 
 export class PiSessionService implements SessionRouteService {
@@ -694,6 +704,15 @@ export class PiSessionService implements SessionRouteService {
   private readonly now: () => Date;
   private readonly notificationStore: SessionNotificationStore;
   private readonly notificationGenerationBySession = new WeakMap<PiAgentSession, SessionNotificationGeneration>();
+  private readonly unreadStore: SessionUnreadStore;
+  private readonly unreadPublicationRetryInitialMs: number;
+  private readonly pendingUnreadMutations: SessionUnreadMutation[] = [];
+  private unreadPublication: Promise<void> | undefined;
+  private unreadPublicationFailure: unknown;
+  private unreadPublicationFlushRequested = false;
+  private unreadPublicationRetryTimer: NodeJS.Timeout | undefined;
+  private unreadPublicationRetryDelayMs: number;
+  private unreadPublicationStopped = false;
 
   constructor(private readonly events: SessionEventHub, deps: PiSessionServiceDependencies) {
     this.archiveStore = deps.archiveStore ?? new SessionArchiveStore();
@@ -704,6 +723,12 @@ export class PiSessionService implements SessionRouteService {
     this.logger = deps.logger ?? noopLogger;
     this.now = deps.now ?? (() => new Date());
     this.notificationStore = deps.notificationStore ?? new SessionNotificationStore();
+    this.unreadStore = deps.unreadStore ?? new SessionUnreadStore();
+    this.unreadPublicationRetryInitialMs = Math.max(
+      0,
+      deps.unreadPublicationRetryDelayMs ?? DEFAULT_UNREAD_PUBLICATION_RETRY_MS,
+    );
+    this.unreadPublicationRetryDelayMs = this.unreadPublicationRetryInitialMs;
     // Subsessions are a beta capability gated behind their own flag, and they
     // also require the spawn capability (they share its project-scope resolver).
     const subsessionsActive = this.spawnTargets !== undefined && deps.subsessionsEnabled === true;
@@ -759,6 +784,20 @@ export class PiSessionService implements SessionRouteService {
 
   notificationCatalog(): SessionNotificationCatalogSnapshot {
     return this.notificationStore.catalogSnapshot();
+  }
+
+  async unreadCatalog(): Promise<SessionUnreadCatalogSnapshot> {
+    await this.publishUnreadMutations([]);
+    return this.unreadStore.durableCatalogSnapshot();
+  }
+
+  async acknowledgeUnread(sessionId: string, request: SessionUnreadAcknowledgeRequest): Promise<SessionUnreadCatalogSnapshot> {
+    const result = this.unreadStore.acknowledge(sessionId, {
+      ...request,
+      cwd: canonicalizeStoredCwd(request.cwd),
+    });
+    await this.publishUnreadMutations(result.mutations);
+    return this.unreadStore.durableCatalogSnapshot();
   }
 
   notificationInbox(ref: PiSessionRef): SessionNotificationInboxSnapshot {
@@ -818,6 +857,7 @@ export class PiSessionService implements SessionRouteService {
     }
     await this.archiveStoreArchiveMany(readyArchiveInputs);
     archiveInputs.push(...readyArchiveInputs);
+    await this.forgetUnreadSessions(readyArchiveInputs);
 
     for (const record of plan.deleteRecords) {
       if (this.activeSessionHasWork(record.sessionId)) {
@@ -830,6 +870,7 @@ export class PiSessionService implements SessionRouteService {
     await this.ensureArchivedRecordsMoved(readyDeleteRecords);
     const deletedSessionIds = new Set(await this.archiveStoreDeleteArchivedMany(readyDeleteRecords.map((record) => record.sessionId)));
     deleteRecords.push(...readyDeleteRecords.filter((record) => deletedSessionIds.has(record.sessionId)));
+    await this.forgetUnreadSessions(deleteRecords);
 
     return summarizeSessionCleanupExecution({
       archiveInputs,
@@ -841,11 +882,14 @@ export class PiSessionService implements SessionRouteService {
   }
 
   async dispose(): Promise<void> {
+    this.unreadPublicationStopped = true;
+    this.clearUnreadPublicationRetry();
     clearInterval(this.heartbeat);
     this.clearCompactionDrainTimers();
     const pendingOpens = this.pendingSessionOpenPromises();
     if (pendingOpens.length > 0) await Promise.allSettled(pendingOpens);
     const activeSessions = Array.from(new Set(this.active.values()));
+    for (const active of activeSessions) this.forgetUnreadActivity(active.runtime.session);
     this.active.clear();
     this.pendingSessionOpens.clear();
     this.activities.clear();
@@ -867,6 +911,7 @@ export class PiSessionService implements SessionRouteService {
         await active.runtime.dispose();
       }
     }));
+    await this.publishUnreadMutations([]);
   }
 
   async list(cwd: string): Promise<ClientSession[]> {
@@ -882,7 +927,9 @@ export class PiSessionService implements SessionRouteService {
       this.publishNotificationMutations(this.notificationStore.clearSession(record.sessionId, "archive-reconcile"));
     }
     const unarchivedSessions = sessions.filter((session) => !archivedById.has(session.id)).map(clientSessionFromListEntry);
-    this.workspaceActivity?.reconcileSessionActivity(cwd, this.reconcilableSessionIds(cwd, unarchivedSessions.map((session) => session.id), archivedById));
+    const reconcilableSessionIds = this.reconcilableSessionIds(cwd, unarchivedSessions.map((session) => session.id), archivedById);
+    this.workspaceActivity?.reconcileSessionActivity(cwd, reconcilableSessionIds);
+    await this.publishUnreadMutations(this.unreadStore.reconcileCwd(canonicalizeStoredCwd(cwd), reconcilableSessionIds));
     const archivedSessions = archivedForCwd
       .sort(compareArchivedRecords)
       .map((record) => clientSessionFromArchivedRecord(record, sessionsById.get(record.sessionId)))
@@ -964,7 +1011,7 @@ export class PiSessionService implements SessionRouteService {
       ...(parentSessionFile === undefined ? {} : { parentSessionFile }),
       cwd: decision.cwd,
     };
-    this.registerVerifiedSubsession(link);
+    await this.registerVerifiedSubsession(link);
     this.persistSubsessionLink(link);
     this.persistSubsessionChildMarker(input.parentSessionId, created.id);
     await this.prompt(created.id, input.prompt);
@@ -1046,7 +1093,7 @@ export class PiSessionService implements SessionRouteService {
     return sessionFileMatches(session, link.childSessionFile) ? link : undefined;
   }
 
-  private registerVerifiedSubsession(link: TrackedSubsessionLink): void {
+  private async registerVerifiedSubsession(link: TrackedSubsessionLink): Promise<void> {
     const { childSessionId, parentSessionId } = link;
     const previousParentId = this.subsessionParents.get(childSessionId);
     if (previousParentId !== undefined && previousParentId !== parentSessionId) {
@@ -1062,6 +1109,25 @@ export class PiSessionService implements SessionRouteService {
 
     this.subsessionLinks.set(childSessionId, link);
     if (!this.subsessionNotifyArmed.has(childSessionId)) this.subsessionNotifyArmed.set(childSessionId, false);
+
+    const cwd = this.cwdForVerifiedSubsession(link);
+    await this.publishUnreadMutations(this.unreadStore.excludeSession(childSessionId, cwd));
+  }
+
+  private cwdForVerifiedSubsession(link: TrackedSubsessionLink): string {
+    const activeCwd = this.activeChildForSubsessionLink(link)?.runtime.session.sessionManager.getCwd();
+    const linkedCwd = nonEmptyString(activeCwd) ?? nonEmptyString(link.cwd);
+    if (linkedCwd !== undefined) return canonicalizeStoredCwd(linkedCwd);
+
+    const childSessionFile = link.childSessionFile;
+    if (childSessionFile !== undefined) {
+      try {
+        return canonicalizeStoredCwd(this.sessionManager.open(childSessionFile).getCwd());
+      } catch (error: unknown) {
+        throw new Error("Could not resolve cwd for verified tracked sub-session", { cause: error });
+      }
+    }
+    throw new Error("Could not resolve cwd for verified tracked sub-session");
   }
 
   private unregisterSubsession(childSessionId: string): void {
@@ -1110,39 +1176,45 @@ export class PiSessionService implements SessionRouteService {
     const activeParent = this.active.get(parentSessionId);
     if (activeParent !== undefined && (parentSessionFile === undefined || activeSessionFileMatches(activeParent, parentSessionFile))) {
       const activeParentFile = nonEmptyString(activeParent.runtime.session.sessionFile);
-      await this.registerPersistedSubsessionLinks(parentSessionId, activeParent.runtime.session.sessionManager, activeParentFile);
-      this.subsessionHydratedParents.add(hydrationKey);
+      const complete = await this.registerPersistedSubsessionLinks(
+        parentSessionId,
+        activeParent.runtime.session.sessionManager,
+        activeParentFile,
+      );
+      if (complete) this.subsessionHydratedParents.add(hydrationKey);
       return;
     }
 
     if (parentSessionFile === undefined) return;
-    if ((await readSessionHeaderSummary(parentSessionFile))?.id !== parentSessionId) {
-      this.subsessionHydratedParents.add(hydrationKey);
-      return;
-    }
+    if ((await readSessionHeaderSummary(parentSessionFile))?.id !== parentSessionId) return;
 
     let parentManager: PiSessionManager;
     try {
       parentManager = this.sessionManager.open(parentSessionFile);
     } catch {
-      this.subsessionHydratedParents.add(hydrationKey);
       return;
     }
-    await this.registerPersistedSubsessionLinks(parentSessionId, parentManager, parentSessionFile);
-    this.subsessionHydratedParents.add(hydrationKey);
+    const complete = await this.registerPersistedSubsessionLinks(parentSessionId, parentManager, parentSessionFile);
+    if (complete) this.subsessionHydratedParents.add(hydrationKey);
   }
 
-  private async registerPersistedSubsessionLinks(parentSessionId: string, parentManager: PiSessionManager, parentSessionFile: string | undefined): Promise<void> {
+  private async registerPersistedSubsessionLinks(parentSessionId: string, parentManager: PiSessionManager, parentSessionFile: string | undefined): Promise<boolean> {
     // Parent custom links are the authoritative recovery record: verify the
-    // exact live child file/header before tracking.
+    // exact live child file/header before tracking. Do not negatively cache a
+    // scan while a candidate child is temporarily unavailable.
     const entries = parentManager.getEntries?.() ?? parentManager.getBranch();
+    let complete = true;
     for (const entry of entries) {
       const link = parsePersistedParentSubsessionLink(entry);
-      if (link === undefined) continue;
+      if (link?.spawnedBySessionId !== parentSessionId) continue;
       const verified = await this.verifiedSubsessionLinkFromParentLink(parentSessionId, parentSessionFile, link);
-      if (verified === undefined) continue;
-      this.registerVerifiedSubsession(verified);
+      if (verified === undefined) {
+        complete = false;
+        continue;
+      }
+      await this.registerVerifiedSubsession(verified);
     }
+    return complete;
   }
 
   private async verifiedSubsessionLinkFromParentLink(parentSessionId: string, parentSessionFile: string | undefined, link: PersistedParentSubsessionLink): Promise<TrackedSubsessionLink | undefined> {
@@ -1160,7 +1232,7 @@ export class PiSessionService implements SessionRouteService {
   private async recoverSubsessionTrackingForOpenedSession(session: PiAgentSession): Promise<void> {
     const link = await this.verifiedSubsessionLinkFromOpenedChild(session);
     if (link === undefined) return;
-    this.registerVerifiedSubsession(link);
+    await this.registerVerifiedSubsession(link);
   }
 
   private verifiedSubsessionLinkFromOpenedChild(session: PiAgentSession): Promise<TrackedSubsessionLink | undefined> {
@@ -1611,6 +1683,7 @@ export class PiSessionService implements SessionRouteService {
         const archiveInput = await this.archiveInputForSession(session);
         await this.closeActive(session.sessionId, { kind: "clear", reason: "archive" });
         await this.archiveStore.archive(archiveInput);
+        await this.forgetUnreadSessions([archiveInput]);
       },
     );
   }
@@ -1623,6 +1696,7 @@ export class PiSessionService implements SessionRouteService {
     ]);
     const failures: SessionBulkFailure[] = [];
     const alreadyArchivedSessionIds: string[] = [];
+    const unreadArchivedIdentities: { sessionId: string; cwd: string }[] = [];
     const planItems: BulkArchivePlanItem[] = [];
 
     for (const ref of uniqueRefs) {
@@ -1630,6 +1704,7 @@ export class PiSessionService implements SessionRouteService {
       if (archived !== undefined) {
         this.publishNotificationMutations(this.notificationStore.clearSession(archived.sessionId, "archive"));
         alreadyArchivedSessionIds.push(archived.sessionId);
+        unreadArchivedIdentities.push(archived);
         continue;
       }
 
@@ -1685,11 +1760,13 @@ export class PiSessionService implements SessionRouteService {
         try {
           const archived = await this.archiveStoreArchiveMany(readyInputs);
           archivedSessionIds.push(...archived.map((record) => record.sessionId));
+          unreadArchivedIdentities.push(...archived);
         } catch (error: unknown) {
           for (const input of readyInputs) failures.push({ sessionId: input.sessionId, error: errorMessage(error) });
         }
       },
     );
+    await this.forgetUnreadSessions(unreadArchivedIdentities);
 
     return {
       archived: true,
@@ -1722,6 +1799,7 @@ export class PiSessionService implements SessionRouteService {
         await this.archiveStoreArchiveMany(archiveInputs);
       },
     );
+    await this.forgetUnreadSessions(plan.targets.map((target) => ({ sessionId: target.id, cwd: target.cwd })));
 
     return {
       archived: true,
@@ -1736,6 +1814,7 @@ export class PiSessionService implements SessionRouteService {
     if (archived === undefined) throw new Error("Session not found");
     await this.closeActive(archived.sessionId, { kind: "clear", reason: "restore" });
     await this.archiveStore.restore(archived.sessionId);
+    await this.forgetUnreadSessions([archived]);
   }
 
   async deleteArchived(ref: PiSessionLookup): Promise<void> {
@@ -1746,6 +1825,7 @@ export class PiSessionService implements SessionRouteService {
     await this.closeActive(record.sessionId, { kind: "clear", reason: "delete" });
     if (record.archivePath === undefined) await this.ensureArchivedRecordMoved(record);
     await this.archiveStore.deleteArchived(record.sessionId);
+    await this.forgetUnreadSessions([record]);
   }
 
   async deleteArchivedMany(refs: readonly SessionBulkMutationRef[]): Promise<SessionBulkDeleteArchivedResponse> {
@@ -1794,6 +1874,8 @@ export class PiSessionService implements SessionRouteService {
     } catch (error: unknown) {
       for (const sessionId of deleteIds) failures.push({ sessionId, error: errorMessage(error) });
     }
+    const deletedIdSet = new Set(deletedSessionIds);
+    await this.forgetUnreadSessions(readyRecords.filter((record) => deletedIdSet.has(record.sessionId)));
 
     return {
       deleted: true,
@@ -1846,6 +1928,7 @@ export class PiSessionService implements SessionRouteService {
     await clearParentSession(sessionFile);
     clearParentSessionHeader(session.sessionManager);
     this.unregisterSubsession(session.sessionId);
+    await this.forgetUnreadSessions([{ sessionId: session.sessionId, cwd: session.sessionManager.getCwd() }]);
   }
 
   async clearQueue(ref: PiSessionLookup): Promise<ClientSessionStatus> {
@@ -2090,6 +2173,7 @@ export class PiSessionService implements SessionRouteService {
       this.publishNotificationMutations(mutations);
     }
     if (!active) return;
+    this.forgetUnreadActivity(active.runtime.session);
     this.active.delete(sessionId);
     this.activities.delete(sessionId);
     this.workspaceActivity?.removeSession(sessionId, active.runtime.session.sessionManager.getCwd());
@@ -2226,6 +2310,7 @@ export class PiSessionService implements SessionRouteService {
       ...(options.initialModel === undefined ? {} : { initialModel: options.initialModel }),
     });
     const active: ActiveSession<PiSessionRuntime> = { runtime, unsubscribe: noop };
+    let boundSession = runtime.session;
     let notificationGeneration = options.notificationGeneration;
     let notificationOwnership: "disabled" | "external" | "registered" | "replacement" = options.notifications === "disabled"
       ? "disabled"
@@ -2254,19 +2339,29 @@ export class PiSessionService implements SessionRouteService {
     if (notificationGeneration !== undefined) this.notificationGenerationBySession.set(runtime.session, notificationGeneration);
 
     try {
+      if (options.creationProvenance === "tracked-subsession") {
+        await this.publishUnreadMutations(this.unreadStore.excludeSession(
+          runtime.session.sessionId,
+          canonicalizeStoredCwd(runtime.session.sessionManager.getCwd()),
+        ));
+      } else {
+        await this.recoverSubsessionTrackingForOpenedSession(runtime.session);
+      }
       await this.bindSessionExtensions(runtime.session, notificationGeneration);
       this.bindRuntime(active);
       runtime.setRebindSession(async (session) => {
         const priorGeneration = notificationGeneration;
         let candidateGeneration: SessionNotificationGeneration | undefined;
         try {
+          await this.prepareUnreadRuntimeRebind(boundSession, session);
+          await this.recoverSubsessionTrackingForOpenedSession(session);
           if (priorGeneration !== undefined) {
             candidateGeneration = this.notificationStore.beginReplacement(priorGeneration, notificationIdentityForSession(session));
             this.notificationGenerationBySession.set(session, candidateGeneration);
           }
           this.bindRuntime(active, session);
+          boundSession = session;
           await this.bindSessionExtensions(session, candidateGeneration);
-          await this.recoverSubsessionTrackingForOpenedSession(session);
           if (candidateGeneration !== undefined) {
             this.publishNotificationMutations(this.notificationStore.commitReplacement(candidateGeneration));
             notificationGeneration = candidateGeneration;
@@ -2281,7 +2376,6 @@ export class PiSessionService implements SessionRouteService {
         }
       });
       this.active.set(runtime.session.sessionId, active);
-      await this.recoverSubsessionTrackingForOpenedSession(runtime.session);
       if (notificationOwnership === "replacement" && notificationGeneration !== undefined) {
         this.publishNotificationMutations(this.notificationStore.commitReplacement(notificationGeneration));
         notificationOwnership = "external";
@@ -2297,6 +2391,7 @@ export class PiSessionService implements SessionRouteService {
         }
       }
       active.unsubscribe();
+      this.forgetUnreadActivity(boundSession);
       let removedActive = false;
       for (const [sessionId, candidate] of this.active.entries()) {
         if (candidate !== active) continue;
@@ -2380,6 +2475,133 @@ export class PiSessionService implements SessionRouteService {
       this.events.publish(mutation.sessionId, mutation.inboxEvent);
       this.events.publishNotificationSummary(mutation.summaryEvent);
     }
+  }
+
+  private async prepareUnreadRuntimeRebind(previous: PiAgentSession, next: PiAgentSession): Promise<void> {
+    const previousCwd = canonicalizeStoredCwd(previous.sessionManager.getCwd());
+    this.unreadStore.forgetActivity(previous.sessionId, previousCwd);
+    const nextCwd = canonicalizeStoredCwd(next.sessionManager.getCwd());
+    if (previous.sessionId === next.sessionId && cwdPathsEqual(previousCwd, nextCwd)) return;
+    await this.publishUnreadMutations(this.unreadStore.forgetSession(previous.sessionId, previousCwd));
+  }
+
+  private forgetUnreadActivity(session: PiAgentSession): void {
+    this.unreadStore.forgetActivity(
+      session.sessionId,
+      canonicalizeStoredCwd(session.sessionManager.getCwd()),
+    );
+  }
+
+  private async forgetUnreadSessions(identities: readonly { sessionId: string; cwd: string }[]): Promise<void> {
+    const mutations: SessionUnreadMutation[] = [];
+    for (const identity of identities) {
+      mutations.push(...this.unreadStore.forgetSession(
+        identity.sessionId,
+        canonicalizeStoredCwd(identity.cwd),
+      ));
+    }
+    await this.publishUnreadMutations(mutations);
+  }
+
+  private observeUnreadActivityState(session: PiAgentSession): void {
+    const mutations = this.unreadStore.observeActivityState(
+      session.sessionId,
+      canonicalizeStoredCwd(session.sessionManager.getCwd()),
+      this.hasActiveWork(session),
+    );
+    if (mutations.length === 0) return;
+    void this.publishUnreadMutations(mutations).catch(() => undefined);
+  }
+
+  private publishUnreadMutations(mutations: readonly SessionUnreadMutation[]): Promise<void> {
+    this.enqueueUnreadMutations(mutations);
+    this.unreadPublicationFlushRequested = true;
+    if (this.unreadPublication === undefined && this.unreadPublicationRetryTimer !== undefined) {
+      const failure = this.unreadPublicationFailure;
+      return Promise.reject(failure instanceof Error
+        ? failure
+        : new Error("Session unread publication is awaiting retry", { cause: failure }));
+    }
+    return this.ensureUnreadPublication();
+  }
+
+  private ensureUnreadPublication(): Promise<void> {
+    const existing = this.unreadPublication;
+    if (existing !== undefined) return existing;
+
+    const publication = this.drainUnreadPublication();
+    this.unreadPublication = publication;
+    void publication.then(
+      () => {
+        if (this.unreadPublication === publication) this.unreadPublication = undefined;
+      },
+      (error: unknown) => {
+        if (this.unreadPublication === publication) this.unreadPublication = undefined;
+        this.unreadPublicationFailure = error;
+        this.logger.info(
+          { error: error instanceof Error ? error.message : String(error) },
+          "failed to publish durable session unread mutations",
+        );
+        this.scheduleUnreadPublicationRetry();
+      },
+    );
+    return publication;
+  }
+
+  private async drainUnreadPublication(): Promise<void> {
+    while (this.unreadPublicationFlushRequested || this.pendingUnreadMutations.length > 0) {
+      this.unreadPublicationFlushRequested = false;
+      const batch = this.pendingUnreadMutations.splice(0);
+      let publishedCount = 0;
+      try {
+        await this.unreadStore.flush();
+        for (const mutation of batch) {
+          this.events.publishGlobal(mutation.event);
+          publishedCount += 1;
+        }
+      } catch (error: unknown) {
+        this.prependUnreadMutations(batch.slice(publishedCount));
+        this.unreadPublicationFlushRequested = true;
+        throw error;
+      }
+      this.unreadPublicationFailure = undefined;
+      this.clearUnreadPublicationRetry();
+    }
+  }
+
+  private enqueueUnreadMutations(mutations: readonly SessionUnreadMutation[]): void {
+    this.pendingUnreadMutations.push(...mutations);
+    this.trimPendingUnreadMutations();
+  }
+
+  private prependUnreadMutations(mutations: readonly SessionUnreadMutation[]): void {
+    this.pendingUnreadMutations.unshift(...mutations);
+    this.trimPendingUnreadMutations();
+  }
+
+  private trimPendingUnreadMutations(): void {
+    const excess = this.pendingUnreadMutations.length - MAX_PENDING_UNREAD_MUTATIONS;
+    if (excess > 0) this.pendingUnreadMutations.splice(0, excess);
+  }
+
+  private scheduleUnreadPublicationRetry(): void {
+    if (this.unreadPublicationStopped || this.unreadPublicationRetryTimer !== undefined) return;
+    const delay = this.unreadPublicationRetryDelayMs;
+    this.unreadPublicationRetryDelayMs = Math.min(
+      Math.max(delay * 2, this.unreadPublicationRetryInitialMs),
+      Math.max(MAX_UNREAD_PUBLICATION_RETRY_MS, this.unreadPublicationRetryInitialMs),
+    );
+    this.unreadPublicationRetryTimer = setTimeout(() => {
+      this.unreadPublicationRetryTimer = undefined;
+      void this.ensureUnreadPublication().catch(() => undefined);
+    }, delay);
+    this.unreadPublicationRetryTimer.unref();
+  }
+
+  private clearUnreadPublicationRetry(): void {
+    if (this.unreadPublicationRetryTimer !== undefined) clearTimeout(this.unreadPublicationRetryTimer);
+    this.unreadPublicationRetryTimer = undefined;
+    this.unreadPublicationRetryDelayMs = this.unreadPublicationRetryInitialMs;
   }
 
   private bindRuntime(active: ActiveSession<PiSessionRuntime>, session: PiAgentSession = active.runtime.session): void {
@@ -2602,12 +2824,14 @@ export class PiSessionService implements SessionRouteService {
   ): Promise<T> {
     const sessionIds = new Set<string>();
     const runtimes = new Set<PiSessionRuntime>();
+    const sessions = new Set<PiAgentSession>();
     for (const target of targets) {
       const runtime = target.runtime ?? (target.session === undefined ? undefined : this.activeRuntimeForSession(target.session));
       const session = target.session ?? runtime?.session;
       if (session !== undefined && this.hasActiveWork(session)) throw new Error(activeError);
       sessionIds.add(target.sessionId);
       if (runtime !== undefined) runtimes.add(runtime);
+      if (session !== undefined) sessions.add(session);
     }
 
     for (const sessionId of sessionIds) {
@@ -2616,12 +2840,16 @@ export class PiSessionService implements SessionRouteService {
     for (const runtime of runtimes) {
       this.treeExclusiveRuntimeOperationCounts.set(runtime, (this.treeExclusiveRuntimeOperationCounts.get(runtime) ?? 0) + 1);
     }
+    for (const session of sessions) this.observeUnreadActivityState(session);
 
     try {
       return await operation();
     } finally {
       for (const runtime of runtimes) decrementWeakCount(this.treeExclusiveRuntimeOperationCounts, runtime);
       for (const sessionId of sessionIds) decrementMapCount(this.treeExclusiveSessionOperationCounts, sessionId);
+      for (const session of sessions) {
+        if (this.isCurrentActiveSession(session)) this.observeUnreadActivityState(session);
+      }
     }
   }
 
@@ -2658,12 +2886,14 @@ export class PiSessionService implements SessionRouteService {
   private beginSessionEntryMutation(session: PiAgentSession, action: string): void {
     this.assertTreeNavigationInactive(session, action);
     this.sessionEntryMutationCounts.set(session, (this.sessionEntryMutationCounts.get(session) ?? 0) + 1);
+    this.observeUnreadActivityState(session);
   }
 
   private endSessionEntryMutation(session: PiAgentSession): void {
     const remaining = (this.sessionEntryMutationCounts.get(session) ?? 1) - 1;
     if (remaining <= 0) this.sessionEntryMutationCounts.delete(session);
     else this.sessionEntryMutationCounts.set(session, remaining);
+    this.observeUnreadActivityState(session);
   }
 
   private isSessionEntryMutationActive(session: PiAgentSession): boolean {
@@ -2705,6 +2935,7 @@ export class PiSessionService implements SessionRouteService {
     this.workspaceActivity?.applySessionActivity(session.sessionManager.getCwd(), activity);
     this.events.publish(session.sessionId, { type: "activity.update", activity });
     this.events.publishGlobal({ type: "activity.update", activity });
+    this.observeUnreadActivityState(session);
   }
 
   private publishStatus(session: PiAgentSession): void {
@@ -2713,6 +2944,7 @@ export class PiSessionService implements SessionRouteService {
     this.workspaceActivity?.applySessionStatus(session.sessionManager.getCwd(), status);
     this.events.publish(session.sessionId, { type: "status.update", status });
     this.events.publishGlobal({ type: "status.update", status });
+    this.observeUnreadActivityState(session);
   }
 
   private clearStaleActiveActivity(session: PiAgentSession): void {
