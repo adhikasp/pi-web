@@ -8,6 +8,7 @@ export interface SessionTreeModel {
   readonly parentById: ReadonlyMap<string, string | null>;
   readonly childrenById: ReadonlyMap<string, readonly string[]>;
   readonly depthById: ReadonlyMap<string, number>;
+  readonly branchDepthById: ReadonlyMap<string, number>;
   readonly activePathIds: ReadonlySet<string>;
   readonly activeLeafId: string | null;
 }
@@ -15,6 +16,7 @@ export interface SessionTreeModel {
 export interface SessionTreeRow {
   readonly node: SessionTreeNode;
   readonly depth: number;
+  readonly branchDepth: number;
   readonly parentId: string | null;
   readonly childIds: readonly string[];
   readonly activePath: boolean;
@@ -65,17 +67,22 @@ export function buildSessionTreeModel(snapshot: SessionTreeSnapshot): SessionTre
   }
 
   const depthById = new Map<string, number>();
+  const branchDepthById = new Map<string, number>();
   const visited = new Set<string>();
-  const stack = [...rootIds].reverse().map((id) => ({ id, depth: 0 }));
+  const stack = [...rootIds].reverse().map((id) => ({ id, depth: 0, branchDepth: 0 }));
   while (stack.length > 0) {
     const next = stack.pop();
     if (next === undefined || visited.has(next.id)) continue;
     visited.add(next.id);
     depthById.set(next.id, next.depth);
+    branchDepthById.set(next.id, next.branchDepth);
     const children = mutableChildren.get(next.id) ?? [];
+    // Session entries form very deep linear chains. Only forks need another
+    // visual lane; indenting every parent would push ordinary history off-screen.
+    const childBranchDepth = next.branchDepth + (children.length > 1 ? 1 : 0);
     for (let index = children.length - 1; index >= 0; index -= 1) {
       const childId = children[index];
-      if (childId !== undefined) stack.push({ id: childId, depth: next.depth + 1 });
+      if (childId !== undefined) stack.push({ id: childId, depth: next.depth + 1, branchDepth: childBranchDepth });
     }
   }
 
@@ -86,6 +93,7 @@ export function buildSessionTreeModel(snapshot: SessionTreeSnapshot): SessionTre
     rootIds.push(id);
     parentById.set(id, null);
     depthById.set(id, 0);
+    branchDepthById.set(id, 0);
   }
 
   const childrenById = new Map<string, readonly string[]>();
@@ -95,7 +103,7 @@ export function buildSessionTreeModel(snapshot: SessionTreeSnapshot): SessionTre
   // cannot badge an unrelated branch or keep a cycle-closing edge active.
   const activePathIds = activeLeafId === null ? new Set<string>() : sessionTreeAncestorIds(activeLeafId, parentById);
 
-  return { nodesById, orderedIds, rootIds, parentById, childrenById, depthById, activePathIds, activeLeafId };
+  return { nodesById, orderedIds, rootIds, parentById, childrenById, depthById, branchDepthById, activePathIds, activeLeafId };
 }
 
 export function visibleSessionTreeRows(model: SessionTreeModel, foldedIds: ReadonlySet<string>): SessionTreeRow[] {
@@ -113,6 +121,7 @@ export function visibleSessionTreeRows(model: SessionTreeModel, foldedIds: Reado
     rows.push({
       node,
       depth: model.depthById.get(id) ?? 0,
+      branchDepth: model.branchDepthById.get(id) ?? 0,
       parentId: model.parentById.get(id) ?? null,
       childIds,
       activePath: model.activePathIds.has(id),

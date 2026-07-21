@@ -48,6 +48,36 @@ describe("session tree hierarchy model", () => {
     expect(visibleSessionTreeRows(model, new Set(["root"])).map((row) => row.node.id)).toEqual(["root"]);
   });
 
+  it("keeps linear history in one visual lane and indents only after forks", () => {
+    const model = buildSessionTreeModel({
+      nodes: [
+        node("root", null),
+        node("before-fork", "root"),
+        node("fork", "before-fork"),
+        node("main", "fork"),
+        node("main-next", "main"),
+        node("side", "fork"),
+        node("nested-fork", "side"),
+        node("nested-a", "nested-fork"),
+        node("nested-b", "nested-fork"),
+      ],
+      activeLeafId: "main-next",
+      activePathIds: [],
+    });
+
+    expect(visibleSessionTreeRows(model, new Set()).map((row) => [row.node.id, row.branchDepth])).toEqual([
+      ["root", 0],
+      ["before-fork", 0],
+      ["fork", 0],
+      ["main", 1],
+      ["main-next", 1],
+      ["side", 1],
+      ["nested-fork", 1],
+      ["nested-a", 2],
+      ["nested-b", 2],
+    ]);
+  });
+
   it("derives one coherent active path from the normalized leaf instead of trusting malformed badges", () => {
     const model = buildSessionTreeModel({
       nodes: [node("root", null), node("active", "root"), node("unrelated", "root")],
@@ -74,6 +104,7 @@ describe("session tree hierarchy model", () => {
 
     expect(model.orderedIds).toHaveLength(count);
     expect(model.depthById.get(`node-${String(count - 1)}`)).toBe(count - 1);
+    expect(model.branchDepthById.get(`node-${String(count - 1)}`)).toBe(0);
     expect(model.activePathIds.size).toBe(count);
     expect(visibleSessionTreeRows(model, new Set())).toHaveLength(count);
   });

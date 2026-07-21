@@ -5,7 +5,7 @@ import { SESSION_TREE_CUSTOM_INSTRUCTIONS_MAX_LENGTH } from "../../../shared/api
 import { buildSessionTreeModel, initialSessionTreeSelection, toggleSessionTreeFold, transitionSessionTreeKey, validateSessionTreeSummaryChoice, visibleSessionTreeRows, type SessionTreeModel, type SessionTreeRow } from "../sessionTreeModel";
 
 const EMPTY_TREE: SessionTreeSnapshot = { nodes: [], activeLeafId: null, activePathIds: [] };
-const MAX_SESSION_TREE_VISUAL_DEPTH = 32;
+const MAX_SESSION_TREE_VISUAL_DEPTH = 8;
 type NavigatorStep = "tree" | "confirm";
 type PendingFocus = "tree" | "summary" | "custom";
 
@@ -103,11 +103,11 @@ export class SessionTreeNavigator extends LitElement {
       row.activeLeaf ? "active-leaf" : "",
       isBookkeepingKind(row.node.kind) ? "bookkeeping" : "",
     ].filter((value) => value !== "").join(" ");
-    const visualDepth = sessionTreeVisualDepth(row.depth);
+    const visualDepth = sessionTreeVisualDepth(row.branchDepth);
     return html`
       <div
         class=${classes}
-        style=${`--tree-indent: ${String(visualDepth * 22)}px; --tree-indent-mobile: ${String(visualDepth * 16)}px;`}
+        style=${`--tree-indent: ${String(visualDepth * 16)}px; --tree-indent-mobile: ${String(visualDepth * 12)}px;`}
         role="treeitem"
         aria-level=${String(row.depth + 1)}
         aria-selected=${selected ? "true" : "false"}
@@ -124,15 +124,17 @@ export class SessionTreeNavigator extends LitElement {
           aria-hidden="true"
           @click=${(event: MouseEvent) => { this.toggleNode(row.node.id, event); }}
         >${row.childIds.length === 0 ? "·" : expanded ? "▾" : "▸"}</span>
-        <span class="kind">${sessionTreeKindLabel(row.node.kind)}</span>
+        <span class="metadata">
+          <span class="kind">${sessionTreeKindLabel(row.node.kind)}</span>
+          <span class="badges">
+            ${row.activePath && !row.activeLeaf ? html`<span class="badge path">Active path</span>` : null}
+            ${row.activeLeaf ? html`<span class="badge leaf">Active leaf</span>` : null}
+          </span>
+        </span>
         <span class="entry">
           <span class="summary" dir="auto">${row.node.summary}</span>
           ${row.node.label === undefined ? null : html`<span class="label" title=${row.node.label}>${row.node.label}</span>`}
           ${row.node.timestamp === undefined ? null : html`<time datetime=${row.node.timestamp}>${row.node.timestamp}</time>`}
-        </span>
-        <span class="badges">
-          ${row.activePath ? html`<span class="badge path">Active path</span>` : null}
-          ${row.activeLeaf ? html`<span class="badge leaf">Active leaf</span>` : null}
         </span>
       </div>
     `;
@@ -212,7 +214,6 @@ export class SessionTreeNavigator extends LitElement {
       `;
     }
 
-    const validation = validateSessionTreeSummaryChoice(this.summaryMode, this.customInstructions);
     const summarizing = this.summaryMode !== "none";
     return html`
       <footer>
@@ -221,7 +222,7 @@ export class SessionTreeNavigator extends LitElement {
         ${this.busy && summarizing ? html`
           <button class="danger" ?disabled=${this.aborting} @click=${() => { void this.abortNavigation(); }}>${this.aborting ? "Cancelling…" : "Cancel summarization"}</button>
         ` : null}
-        <button class="primary" ?disabled=${this.busy || this.selectedId === undefined || !validation.ok} @click=${() => { void this.submitNavigation(); }}>
+        <button class="primary" ?disabled=${this.busy || this.selectedId === undefined} @click=${() => { void this.submitNavigation(); }}>
           ${this.busy ? summarizing ? "Summarizing…" : "Navigating…" : summarizing ? "Summarize and navigate" : "Navigate"}
         </button>
       </footer>
@@ -282,6 +283,10 @@ export class SessionTreeNavigator extends LitElement {
 
   private continueToConfirmation(): void {
     if (this.selectedId === undefined || !this.model.nodesById.has(this.selectedId)) return;
+    if (!validateSessionTreeSummaryChoice(this.summaryMode, this.customInstructions).ok) {
+      this.summaryMode = "none";
+      this.customInstructions = "";
+    }
     this.step = "confirm";
     this.error = "";
     this.statusMessage = "";
@@ -315,8 +320,10 @@ export class SessionTreeNavigator extends LitElement {
     if (this.busy || this.selectedId === undefined) return;
     const validation = validateSessionTreeSummaryChoice(this.summaryMode, this.customInstructions);
     if (!validation.ok) {
-      this.error = validation.error;
+      this.error = "";
+      this.statusMessage = "";
       this.pendingFocus = "custom";
+      this.requestUpdate();
       return;
     }
     const navigate = this.onNavigate;
@@ -457,6 +464,11 @@ export class SessionTreeNavigator extends LitElement {
     .disclosure { width: 20px; height: 28px; display: grid; place-items: center; border-radius: 5px; color: var(--pi-muted); font-size: 15px; user-select: none; }
     .disclosure:not(.leaf):hover { color: var(--pi-text); background: var(--pi-surface-hover); }
     .disclosure.leaf { opacity: .5; }
+    .metadata { display: contents; }
+    .tree-row > .disclosure { grid-column: 1; grid-row: 1; }
+    .tree-row > .metadata > .kind { grid-column: 2; grid-row: 1; }
+    .tree-row > .entry { grid-column: 3; grid-row: 1; }
+    .tree-row > .metadata > .badges { grid-column: 4; grid-row: 1; }
     .kind { display: inline-flex; align-items: center; width: fit-content; border: 1px solid var(--pi-border); border-radius: 999px; padding: 2px 7px; color: var(--pi-muted); background: var(--pi-bg); font-size: 11px; font-weight: 700; white-space: nowrap; }
     .entry { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
     .summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pi-text); }
@@ -499,14 +511,14 @@ export class SessionTreeNavigator extends LitElement {
 
     @media (max-width: 760px) {
       header { padding-top: max(12px, env(safe-area-inset-top)); }
-      .tree-step { padding-inline: 8px; }
+      .tree-step { padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right)); }
       .tree-intro { padding-inline: 4px; }
-      .tree-row { grid-template-columns: 20px minmax(0, 1fr) auto; padding-inline-start: calc(7px + var(--tree-indent-mobile)); }
-      .tree-row .kind { grid-column: 2; }
-      .tree-row .entry { grid-column: 2 / 4; display: grid; gap: 3px; }
+      .tree-row { grid-template-columns: 20px minmax(0, 1fr); padding-inline-start: calc(7px + min(var(--tree-indent-mobile), 48px)); }
+      .tree-row > .metadata { grid-column: 2; grid-row: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; }
+      .tree-row > .metadata > .badges { margin-inline-start: auto; flex-wrap: wrap; }
+      .tree-row > .entry { grid-column: 2; grid-row: 2; display: grid; gap: 3px; }
       .tree-row .summary { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
       .tree-row time { display: none; }
-      .badges { grid-column: 3; grid-row: 1; flex-wrap: wrap; }
       .confirmation-step { padding: 18px 12px; }
       .custom-focus, .validation-error { margin-inline-start: 0; }
       footer { flex-wrap: wrap; }

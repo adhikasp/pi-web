@@ -31,6 +31,24 @@ describe("session-tree-navigator interactions", () => {
     expect(onNavigate).toHaveBeenNthCalledWith(2, "side", { mode: "none" });
   });
 
+  it("restores the valid no-summary default after leaving an incomplete custom choice", async () => {
+    const navigator = initializedNavigator();
+    const onNavigate = vi.fn<NavigateCallback>().mockResolvedValue({ cancelled: false });
+    navigator.onNavigate = onNavigate;
+
+    clickTreeNavigate(navigator);
+    callSummaryModeMethod(navigator, "custom");
+    await callPromiseMethod(navigator, "submitNavigation");
+    expect(onNavigate).not.toHaveBeenCalled();
+
+    callVoidMethod(navigator, "returnToTree");
+    clickTreeNavigate(navigator);
+
+    expect(componentProperty(navigator, "summaryMode")).toBe("none");
+    await callPromiseMethod(navigator, "submitNavigation");
+    expect(onNavigate).toHaveBeenCalledWith("active", { mode: "none" });
+  });
+
   it("submits trimmed custom focus, exposes busy cancellation, and returns to the same node", async () => {
     const navigation = deferred<SessionTreeNavigateResult>();
     const navigator = initializedNavigator();
@@ -137,8 +155,8 @@ describe("session-tree-navigator interactions", () => {
     expect(sessionTreeEntryReturnsToEditor("assistant")).toBe(false);
     expect(sessionTreeEntryReturnsToEditor("tool-result")).toBe(false);
     expect(sessionTreeVisualDepth(-1)).toBe(0);
-    expect(sessionTreeVisualDepth(12)).toBe(12);
-    expect(sessionTreeVisualDepth(20_000)).toBe(32);
+    expect(sessionTreeVisualDepth(7)).toBe(7);
+    expect(sessionTreeVisualDepth(20_000)).toBe(8);
   });
 });
 
