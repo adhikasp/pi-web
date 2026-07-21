@@ -61,7 +61,6 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
   @property({ attribute: false }) onCleanup?: () => void;
   @property({ type: Boolean }) recentOnly = false;
   @property({ attribute: false }) recentSessionIds: string[] = [];
-  @property({ attribute: false }) unreadSessionIds: readonly string[] = [];
 
   @state() private openMenuSessionId: string | undefined;
   @state() private menuStyle = "";
@@ -106,7 +105,6 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
   }
 
   override render() {
-    const unreadIdSet = new Set(this.unreadSessionIds);
     const allCurrentRows = sessionRowsForCurrentTree(this.sessions);
     let currentRows: SessionRow[];
     let archivedRows: SessionRow[];
@@ -141,12 +139,12 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
           <div class="list-body">
             ${this.renderCurrentSelectionToolbar(currentSelectableSessions)}
             ${this.startingCount > 0 ? this.renderStartingSession() : null}
-            ${currentRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "current", unreadIdSet))}
+            ${currentRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "current"))}
             ${archivedRows.length > 0 ? html`
               ${this.renderArchivedHeading(archivedRows.map((row) => row.session))}
               ${this.archivedExpanded ? html`
                 ${this.renderArchivedSelectionToolbar(archivedRows.map((row) => row.session))}
-                ${archivedRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "archived", unreadIdSet))}
+                ${archivedRows.map((row) => this.renderSession(row, descendantCounts.get(row.session.id) ?? 0, "archived"))}
               ` : null}
             ` : null}
           </div>
@@ -156,6 +154,7 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
   }
 
   private renderHeading(sessionCount: number, currentSessions: SessionInfo[], unreadCount: number) {
+    const headingLabel = this.recentOnly ? "Recent" : "Sessions";
     if (!this.collapsible) {
       return html`
         <h2>
@@ -261,7 +260,7 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
     `;
   }
 
-  private renderSession(row: SessionRow, descendantCount: number, scope: SessionSelectionScope, unreadIdSet?: ReadonlySet<string>) {
+  private renderSession(row: SessionRow, descendantCount: number, scope: SessionSelectionScope) {
     const { session } = row;
     const cappedDepth = Math.min(row.depth, 2);
     const canBulkSelect = sessionSelectionScope(session) === scope;

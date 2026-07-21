@@ -1474,7 +1474,50 @@ export class PiSessionService implements SessionRouteService {
       ? null
       : projectBrowserMessage(streamingMessage);
     return { seq, partial };
+  }
 
+  /**
+   * Return the current in-progress streaming state for a session so a newly
+   * connecting WebSocket client can catch up to the live stream without
+   * waiting for `message.end`.
+   */
+  getStreamingState(sessionId: string): { partialMessage?: unknown; activeToolCalls: { toolName: string; toolCallId: string; summary: string; args?: unknown }[] } | undefined {
+    const active = this.active.get(sessionId);
+    if (active === undefined) return undefined;
+    const { session } = active.runtime;
+    if (!session.isStreaming) return undefined;
+    // Access the underlying AgentSession.agent.state from the Pi SDK.
+    // Duck-type through the existing PiAgentSession facade without type assertions.
+    const agent = isRecord(session) ? getProperty(session, "agent") : undefined;
+    const agentState = isRecord(agent) ? getProperty(agent, "state") : undefined;
+    const streamingMessage = isRecord(agentState) ? getProperty(agentState, "streamingMessage") : undefined;
+    const pendingToolCallSet = isRecord(agentState) ? getProperty(agentState, "pendingToolCalls") : undefined;
+    const pendingToolCalls: ReadonlySet<unknown> | undefined = pendingToolCallSet instanceof Set ? pendingToolCallSet : undefined;
+    if (streamingMessage === undefined && (pendingToolCalls === undefined || pendingToolCalls.size === 0)) {
+      return undefined;
+    }
+    // Extract tool call info from the partial message content.
+    const activeToolCalls: { toolName: string; toolCallId: string; summary: string; args?: unknown }[] = [];
+    if (streamingMessage !== undefined && pendingToolCalls !== undefined && pendingToolCalls.size > 0) {
+      const content = isRecord(streamingMessage) ? getProperty(streamingMessage, "content") : undefined;
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (!isRecord(block)) continue;
+          if (getString(block, "type") !== "toolCall") continue;
+          const toolCallId = getString(block, "toolCallId");
+          if (toolCallId === undefined || !pendingToolCalls.has(toolCallId)) continue;
+          const toolName = getString(block, "toolName") ?? "tool";
+          const args = getProperty(block, "args");
+          activeToolCalls.push({
+            toolName,
+            toolCallId,
+            summary: summarizeToolArgs(args),
+            args,
+          });
+        }
+      }
+    }
+    return { partialMessage: streamingMessage, activeToolCalls };
   }
 
   async availableModels(ref: PiSessionLookup): Promise<ClientSessionModel[]> {
@@ -1863,7 +1906,7 @@ export class PiSessionService implements SessionRouteService {
     const busy = plan.targets.map((target) => target.activeSession).find((target) => target !== undefined && this.hasActiveWork(target));
     if (busy !== undefined) throw new Error(`Stop current session activity before archiving ${sessionDisplayName(busy)}`);
 
-    const archiveInputs = plan.unarchivedTargets.map((target) => archiveInputFromCandidate(target));
+    const archiveInputs = await Promise.all(plan.unarchivedTargets.map((target) => archiveInputFromCandidate(target)));
     await this.runTreeExclusiveOperation(
       plan.unarchivedTargets.map((target) => ({
         sessionId: target.id,
@@ -2050,7 +2093,6 @@ export class PiSessionService implements SessionRouteService {
       lastReadAt,
       lastReadMessageCount,
     });
-  }
   }
 
   async abort(ref: PiSessionLookup): Promise<void> {

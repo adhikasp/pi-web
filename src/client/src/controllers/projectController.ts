@@ -3,12 +3,12 @@ import { selectedMachineId, type GetState, type SetState } from "./types";
 import type { WorkspaceController } from "./workspaceController";
 
 export interface ProjectControllerDependencies {
-  api?: Pick<typeof defaultApi, "projects" | "addProject" | "closeProject">;
+  api?: Pick<typeof defaultApi, "projects" | "addProject" | "closeProject" | "renameProject">;
   onProjectsApplied?: (machineId: string) => void;
 }
 
 export class ProjectController {
-  private readonly api: Pick<typeof defaultApi, "projects" | "addProject" | "closeProject">;
+  private readonly api: Pick<typeof defaultApi, "projects" | "addProject" | "closeProject" | "renameProject">;
   private readonly onProjectsApplied: ((machineId: string) => void) | undefined;
 
   constructor(
@@ -71,7 +71,7 @@ export class ProjectController {
   async renameProject(projectId: string, name: string) {
     if (name.trim() === "") return;
     try {
-      const project = await api.renameProject(projectId, name.trim(), selectedMachineId(this.getState()));
+      const project = await this.api.renameProject(projectId, name.trim(), selectedMachineId(this.getState()));
       const state = this.getState();
       this.setState({
         projects: state.projects.map((p) => (p.id === projectId ? project : p)),

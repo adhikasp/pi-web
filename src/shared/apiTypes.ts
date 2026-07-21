@@ -1082,7 +1082,6 @@ export interface AskUserQuestionResult {
 }
 
 export type GlobalSessionEvent =
-export type GlobalSessionEvent =
   | Extract<SessionUiEventBody, { type: "status.update" | "activity.update" | "session.name" | "session.created" | "session.read" }>
   | SessionNotificationSummaryEvent
   | SessionUnreadEvent;

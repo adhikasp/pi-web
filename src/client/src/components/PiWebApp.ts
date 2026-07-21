@@ -1,6 +1,6 @@
 import { LitElement, html } from "lit";
 import { customElement, query, state } from "lit/decorators.js";
-import { configApi, effectiveWorkspaceUploadFolder, piWebApi, sessionsApi, terminalsApi, workspacesApi, workspaceEffectiveUploadFolder, type AskUserQuestionResult, type Machine, type MachineHealth, type PiWebConfigValues, type PiWebShortcutConfig, type Project, type RealtimeEvent, type ScheduledTask, type ScheduledTaskCreateRequest, type SessionCleanupExecuteResponse, type SessionCleanupPreviewResponse, type SessionCleanupRequest, type SessionInfo, type SessionTreeNavigateResult, type SessionTreeSummaryChoice, type TerminalCommandRun, type TerminalUiEvent, type Workspace } from "../api";
+import { configApi, effectiveWorkspaceUploadFolder, sessionsApi, terminalsApi, workspacesApi, workspaceEffectiveUploadFolder, type AskUserQuestionResult, type Machine, type MachineHealth, type PiWebConfigValues, type PiWebShortcutConfig, type Project, type ScheduledTask, type ScheduledTaskCreateRequest, type SessionCleanupExecuteResponse, type SessionCleanupPreviewResponse, type SessionCleanupRequest, type SessionInfo, type SessionTreeNavigateResult, type SessionTreeSummaryChoice, type TerminalCommandRun, type TerminalUiEvent, type Workspace } from "../api";
 import { unreadSessionCount } from "./SessionList";
 import "./ScheduledTaskList";
 import "./ScheduledTaskDialog";
@@ -62,12 +62,6 @@ import { isWorkspaceDeletionPending, isWorkspaceDeletionRunPending, latestWorksp
 import "./MachineList";
 import "./ProjectList";
 import "./WorkspaceList";
-import { unreadSessionCount } from "./SessionList";
-
-import "./ScheduledTaskList";
-import "./ScheduledTaskDialog";
-import "./ScheduledTaskRunHistory";
-import "./SessionList";
 import "./SessionCleanupDialog";
 import "./SessionTreeNavigator";
 import "./ChatView";
@@ -165,7 +159,6 @@ export class PiWebApp extends LitElement {
         this.promptEditor?.replaceText(text);
       },
       recentSessions: this.recentSessions,
-      unreadTracker: this.unreadTracker,
     },
   );
   private readonly projectActivityOwnership = new ProjectActivityOwnershipCoordinator(
@@ -340,6 +333,12 @@ private sessionWarningVisibility = initialSessionWarningVisibilityState();
     // deduplicates acknowledgements for the observed completion order.
     this.committedChatIdentity = selectedChatIdentity(this.state);
     this.syncSelectedSessionReadState();
+
+    if (this.pendingSharedText === undefined || this.state.selectedSession === undefined) return;
+    const editor = this.promptEditor;
+    if (editor === undefined) return;
+    editor.appendText(this.pendingSharedText);
+    this.pendingSharedText = undefined;
   }
 
   private syncSessionWarningVisibility(): void {
@@ -400,14 +399,6 @@ private sessionWarningVisibility = initialSessionWarningVisibilityState();
       || this.state.thinkingDialog !== undefined
       || this.state.themeDialog !== undefined
       || this.state.authDialog !== undefined;
-  }
-
-  protected override updated(): void {
-    if (this.pendingSharedText === undefined || this.state.selectedSession === undefined) return;
-    const editor = this.promptEditor;
-    if (editor === undefined) return;
-    editor.appendText(this.pendingSharedText);
-    this.pendingSharedText = undefined;
   }
 
   override connectedCallback(): void {
@@ -1528,9 +1519,6 @@ void this.refreshWorkspaceActivity(machineId);
     const recentSessionIds = isMobile && workspaceCwd !== undefined
       ? this.recentSessions.getRecent(`${machineId}:${workspaceCwd}`).map((entry) => entry.sessionId)
       : [];
-    const unreadSessionIds = this.state.sessions
-      .filter((s) => hasUnreadMessages(s))
-      .map((s) => s.id);
 
     return html`
       <app-navigation-panel
@@ -1569,7 +1557,6 @@ void this.refreshWorkspaceActivity(machineId);
         .compact=${this.appShell.isMobileNavigationLayout}
         .recentOnly=${isMobile}
         .recentSessionIds=${recentSessionIds}
-        .unreadSessionIds=${unreadSessionIds}
         .projectsCollapsed=${this.navigationSections.isCollapsed("projects")}
         .workspacesCollapsed=${this.navigationSections.isCollapsed("workspaces")}
         .scheduledTasksCollapsed=${this.navigationSections.isCollapsed("scheduledTasks")}
@@ -2595,10 +2582,4 @@ function thinkingDescription(level: string): string | undefined {
     case "xhigh": return "Maximum reasoning (~32k tokens)";
     default: return undefined; // unknown level from a newer pi: no description
   }
-}
-
-function hasUnreadMessages(session: import("../api").SessionInfo): boolean {
-  if (session.messageCount <= 0) return false;
-  if (session.lastReadMessageCount === undefined) return true;
-  return session.messageCount > session.lastReadMessageCount;
 }

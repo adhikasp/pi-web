@@ -45,6 +45,9 @@ export interface SessionRouteService {
   messages(ref: SessionRouteLookup, page?: { before?: number; limit?: number }): Promise<unknown[] | ClientMessagePage>;
   status(ref: SessionRouteLookup): Promise<ClientSessionStatus>;
   streamSnapshot(ref: SessionRouteLookup): Promise<SessionStreamSnapshot>;
+  getStreamingState(sessionId: string): { partialMessage?: unknown; activeToolCalls: { toolName: string; toolCallId: string; summary: string; args?: unknown }[] } | undefined;
+  getPendingQuestionnaire(sessionId: string): { requestId: string; questions: unknown } | undefined;
+  markAsRead(ref: SessionRouteLookup): Promise<void>;
   notificationCatalog(): SessionNotificationCatalogSnapshot | Promise<SessionNotificationCatalogSnapshot>;
   unreadCatalog(): Promise<SessionUnreadCatalogSnapshot>;
   acknowledgeUnread(sessionId: string, request: SessionUnreadAcknowledgeRequest): Promise<SessionUnreadCatalogSnapshot>;

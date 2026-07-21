@@ -773,6 +773,10 @@ class CapturingRouteSessionService implements SessionRouteService {
 
   list(): never { throw unusedRouteMethod("list"); }
   start(): never { throw unusedRouteMethod("start"); }
+  getStreamingState(): never { throw unusedRouteMethod("getStreamingState"); }
+  getPendingQuestionnaire(): never { throw unusedRouteMethod("getPendingQuestionnaire"); }
+  markAsRead(): never { throw unusedRouteMethod("markAsRead"); }
+  respondToQuestionnaire(): never { throw unusedRouteMethod("respondToQuestionnaire"); }
 
   dismissWarning(lookup: SessionRouteLookup, dismissId: string): Promise<SessionStatus> {
     this.dismissWarningCalls.push({ lookup, dismissId });

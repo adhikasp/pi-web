@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { canonicalizeStoredCwd } from "../workingDirectory.js";
 import { PiSessionService, type PiAgentSession } from "./piSessionService.js";
 import {
   CapturingSessionEventHub,
@@ -50,7 +51,7 @@ describe("PiSessionService daemon-owned unread state", () => {
 
       const secondSnapshot = await service.unreadCatalog();
       const current = secondSnapshot.sessions[0];
-      expect(current).toMatchObject({ sessionId: "session-1", cwd: "/workspace", completionOrder: 2 });
+      expect(current).toMatchObject({ sessionId: "session-1", cwd: canonicalizeStoredCwd("/workspace"), completionOrder: 2 });
       expect(unreadEvents(hub).map((event) => event.catalogRevision)).toEqual([1, 2]);
 
       const staleSnapshot = await service.acknowledgeUnread("session-1", {
@@ -100,7 +101,7 @@ describe("PiSessionService daemon-owned unread state", () => {
       finishBash?.();
       await Promise.resolve();
 
-      expect((await service.unreadCatalog()).sessions).toMatchObject([{ sessionId: "session-1", cwd: "/workspace", completionOrder: 1 }]);
+      expect((await service.unreadCatalog()).sessions).toMatchObject([{ sessionId: "session-1", cwd: canonicalizeStoredCwd("/workspace"), completionOrder: 1 }]);
     } finally {
       await service.dispose();
     }
@@ -264,7 +265,7 @@ describe("PiSessionService daemon-owned unread state", () => {
       const afterReload = (await service.unreadCatalog()).sessions[0];
 
       expect(beforeReload).toBeDefined();
-      expect(afterReload).toMatchObject({ sessionId: "session-1", cwd: "/workspace" });
+      expect(afterReload).toMatchObject({ sessionId: "session-1", cwd: canonicalizeStoredCwd("/workspace") });
       expect(afterReload?.completionOrder).toBeGreaterThan(beforeReload?.completionOrder ?? 0);
     } finally {
       await service.dispose();
@@ -404,7 +405,7 @@ describe("PiSessionService daemon-owned unread state", () => {
       completeRuntimeWork(child);
       expect((await service.unreadCatalog()).sessions).toContainEqual(expect.objectContaining({
         sessionId: "child-1",
-        cwd: "/workspace-feature",
+        cwd: canonicalizeStoredCwd("/workspace-feature"),
       }));
     } finally {
       await service.dispose();
@@ -452,7 +453,7 @@ describe("PiSessionService daemon-owned unread state", () => {
       ]);
 
       expect((await service.unreadCatalog()).sessions).toEqual([]);
-      expect(unreadEvents(hub).at(-1)).toMatchObject({ sessionId: "child-1", cwd: "/workspace-feature", unread: null });
+      expect(unreadEvents(hub).at(-1)).toMatchObject({ sessionId: "child-1", cwd: canonicalizeStoredCwd("/workspace-feature"), unread: null });
     } finally {
       await service.dispose();
     }
@@ -553,7 +554,7 @@ describe("PiSessionService daemon-owned unread state", () => {
       await service.status(sessionRef("child-1", "/workspace-feature"));
       await expect(service.listSubsessions("parent-1", parentFile)).resolves.toEqual([]);
       expect((await service.unreadCatalog()).sessions).toMatchObject([
-        { sessionId: "child-1", cwd: "/workspace-feature" },
+        { sessionId: "child-1", cwd: canonicalizeStoredCwd("/workspace-feature") },
       ]);
     } finally {
       await service.dispose();
@@ -580,7 +581,7 @@ describe("PiSessionService daemon-owned unread state", () => {
 
     try {
       await service.status(sessionRef("branch-1"));
-      expect((await service.unreadCatalog()).sessions).toMatchObject([{ sessionId: "branch-1", cwd: "/workspace" }]);
+      expect((await service.unreadCatalog()).sessions).toMatchObject([{ sessionId: "branch-1", cwd: canonicalizeStoredCwd("/workspace") }]);
     } finally {
       await service.dispose();
     }
@@ -595,8 +596,9 @@ function completeRuntimeWork(runtime: ReturnType<typeof fakeRuntime>): void {
 }
 
 function completeStoreWork(store: SessionUnreadStore, sessionId: string, cwd: string): void {
-  store.observeActivityState(sessionId, cwd, true);
-  store.observeActivityState(sessionId, cwd, false);
+  const canonicalCwd = canonicalizeStoredCwd(cwd);
+  store.observeActivityState(sessionId, canonicalCwd, true);
+  store.observeActivityState(sessionId, canonicalCwd, false);
 }
 
 function unreadEvents(hub: CapturingSessionEventHub) {

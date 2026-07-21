@@ -22,7 +22,7 @@ import { TerminalService } from "./terminals/terminalService.js";
 import { registerTerminalRoutes } from "./terminals/terminalRoutes.js";
 import { getPiWebRuntimeComponent } from "./piWebStatus.js";
 import { SESSIOND_RUNTIME_CAPABILITIES } from "../shared/capabilities.js";
-import { agentSessionDirEnvKeys, effectivePiWebConfig, maxUploadBytes, scheduledTasksEnabled, spawnSessionsEnabled, subsessionsEnabled } from "../config.js";
+import { agentSessionDirEnvKeys, effectivePiWebConfig, maxUploadBytes, scheduledTasksEnabled } from "../config.js";
 import { createActiveAgentProfileDescriptor } from "../sessiond/activeAgentProfile.js";
 import { runSessionDaemonStartup } from "./sessiond/sessionDaemonStartup.js";
 import { PushService } from "./push/pushService.js";
@@ -86,6 +86,19 @@ const auth = await AuthService.create({ agentDir: activeAgentProfile.dir, logger
       ...getPiWebRuntimeComponent("sessiond", SESSIOND_RUNTIME_CAPABILITIES),
       activeAgentProfile,
     });
+
+    const scheduledTaskStore = new ScheduledTaskStore();
+    const scheduledTaskRunStore = new ScheduledTaskRunStore();
+    const scheduledTaskService = new ScheduledTaskService(scheduledTaskStore, scheduledTaskRunStore, projects, workspaces);
+    const scheduledTaskScheduler = new ScheduledTaskScheduler({
+      store: scheduledTaskStore,
+      runs: scheduledTaskRunStore,
+      service: scheduledTaskService,
+      sessions,
+      pushNotifier: pushService,
+      logger: app.log,
+    });
+
     return { eventHub, workspaceActivity, auth, sessions, terminals, unreadStore, activeAgentProfile, runtimeComponent, pushService, scheduledTaskScheduler, scheduledTaskService };
   },
   registerRoutes({ eventHub, workspaceActivity, auth, sessions, terminals, runtimeComponent, scheduledTaskScheduler, scheduledTaskService }) {
@@ -94,7 +107,7 @@ const auth = await AuthService.create({ agentDir: activeAgentProfile.dir, logger
     registerSessionRoutes(app, sessions, eventHub);
     registerTerminalRoutes(app, terminals);
 
-    if (scheduledTasksEnabled(config, {})) {
+    if (scheduledTasksEnabled(process.env, config)) {
       registerScheduledTaskRoutes(app, scheduledTaskService, scheduledTaskScheduler);
     }
 
@@ -124,7 +137,7 @@ const auth = await AuthService.create({ agentDir: activeAgentProfile.dir, logger
       shuttingDown = true;
       app.log.info({ signal }, "shutting down session daemon");
       scheduledTaskScheduler.dispose();
-      const attempt = async (operation, run) => {
+      const attempt = async (operation: string, run: () => void | Promise<void>) => {
         try {
           await run();
         } catch (error) {

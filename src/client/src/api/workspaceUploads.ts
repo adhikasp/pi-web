@@ -1,4 +1,5 @@
 import type { WriteWorkspaceFileOptions, WriteWorkspaceFileResponse } from "../../../shared/apiTypes";
+import { resolveAppUrl } from "../appUrl";
 import { parseWriteWorkspaceFileResponse } from "./parsers";
 import { workspaceFileWriteUrl } from "./urls";
 
@@ -138,7 +139,7 @@ export function uploadWorkspaceFile(
       resolve(response);
     };
 
-    xhr.open("PUT", workspaceFileWriteUrl(projectId, workspaceId, input.path, uploadWriteUrlOptions(options)), true);
+    xhr.open("PUT", resolveAppUrl(workspaceFileWriteUrl(projectId, workspaceId, input.path, uploadWriteUrlOptions(options))), true);
     xhr.responseType = "json";
     xhr.setRequestHeader("Content-Type", (input.contentType ?? input.file.type) || "application/octet-stream");
     xhr.upload.onprogress = (event) => {

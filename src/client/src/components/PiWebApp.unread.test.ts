@@ -55,6 +55,7 @@ describe("PiWebApp session unread wiring", () => {
       baseURI: "https://pi.example.test/",
       get visibilityState() { return documentState.visible ? "visible" : "hidden"; },
       hasFocus: () => documentState.focused,
+      documentElement: { style: { setProperty: () => undefined, removeProperty: () => undefined } },
     });
     const app = createApp();
     enableUnread(app);
@@ -265,8 +266,14 @@ function createApp(storedValues: Record<string, string> = {}, mobileNavigation =
     clearTimeout: () => undefined,
   });
   if (typeof document === "undefined") {
-    vi.stubGlobal("document", { baseURI: "https://pi.example.test/", visibilityState: "visible", hasFocus: () => true });
+    vi.stubGlobal("document", {
+      baseURI: "https://pi.example.test/",
+      visibilityState: "visible",
+      hasFocus: () => true,
+      documentElement: { style: { setProperty: () => undefined, removeProperty: () => undefined } },
+    });
   }
+  vi.stubGlobal("navigator", { serviceWorker: { addEventListener: () => undefined, removeEventListener: () => undefined } });
   vi.stubGlobal("requestAnimationFrame", () => 1);
   return new PiWebApp();
 }

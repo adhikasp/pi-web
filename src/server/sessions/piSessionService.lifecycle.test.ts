@@ -1047,6 +1047,8 @@ describe("PiSessionService lifecycle, listing, and reload", () => {
       const service = new PiSessionService(new CapturingSessionEventHub(), {
         createAgentRuntime: runtimeCreator(fake.runtime),
         sessionManager: sessionGateway([sessionRecord("push-session")]),
+        agentDir: TEST_AGENT_DIR,
+        modelRuntime: testModelRuntime,
         heartbeatIntervalMs: 60_000,
         pushNotifier,
       });
@@ -1075,6 +1077,8 @@ describe("PiSessionService lifecycle, listing, and reload", () => {
       const service = new PiSessionService(new CapturingSessionEventHub(), {
         createAgentRuntime: runtimeCreator(fake.runtime),
         sessionManager: sessionGateway([sessionRecord("push-disabled-session")]),
+        agentDir: TEST_AGENT_DIR,
+        modelRuntime: testModelRuntime,
         heartbeatIntervalMs: 60_000,
         pushNotifier,
       });
@@ -1104,6 +1108,8 @@ describe("PiSessionService lifecycle, listing, and reload", () => {
       const service = new PiSessionService(new CapturingSessionEventHub(), {
         createAgentRuntime,
         sessionManager: sessionGateway([]),
+        agentDir: TEST_AGENT_DIR,
+        modelRuntime: testModelRuntime,
         archiveStore: emptyArchiveStore(),
         spawnTargets: { resolveSpawnTarget: () => Promise.resolve(decision) },
         subsessionsEnabled: true,

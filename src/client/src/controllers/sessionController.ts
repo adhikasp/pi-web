@@ -566,7 +566,6 @@ export class SessionController {
       selectedMachineId(state),
     ).catch(() => { /* ignore */ });
   }
-  }
 
   applySessionStatus(status: SessionStatus): void {
     this.applyStatus(status);

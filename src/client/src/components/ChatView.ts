@@ -555,6 +555,7 @@ export class ChatView extends LitElement {
 
   private renderGroupKey(group: RenderGroup): string {
     if (group.kind === "message") return this.messageAnchorKey(group.index);
+    if (group.kind === "tool-image") return this.messageAnchorKey(group.index);
     if (group.kind === "combined") return this.combinedRenderKey(group.eventsStart, group.index);
     if (group.kind === "run") return this.runRenderKey(group.index);
     return this.groupRenderKey(group.startIndex);
@@ -562,6 +563,7 @@ export class ChatView extends LitElement {
 
   private renderGroup(group: RenderGroup, index: number, groups: RenderGroup[]) {
     if (group.kind === "message") return this.renderMessage(group.message, group.index);
+    if (group.kind === "tool-image") return this.renderToolImageOutput(group.message, group.index, group.toolName);
     if (group.kind === "combined") return this.renderCombinedGroup(group.events, group.eventsStart, group.eventsEnd, group.message, group.index, this.isLiveTailGroup(groups, index));
     if (group.kind === "run") return this.renderRunGroup(group.segments, group.index, this.isLiveTailGroup(groups, index));
     return this.renderMessageGroup(group.messages, group.startIndex, group.endIndex, this.isLiveTailGroup(groups, index));
@@ -635,17 +637,7 @@ export class ChatView extends LitElement {
     return activity.detail !== undefined && activity.detail !== "" ? `${activity.label}: ${activity.detail}` : activity.label;
   }
 
-  private syncPartialStreamNoticeBody(): void {
-    this.partialStreamNoticeBody = this.isReceivingPartialStream ? randomPartialStreamNoticeBody() : undefined;
-  }
-
-  private currentPartialStreamNoticeBody(): string {
-    this.partialStreamNoticeBody ??= randomPartialStreamNoticeBody();
-    return this.partialStreamNoticeBody;
-  }
-
-
-    private renderConversationRail() {
+  private renderConversationRail() {
     if (!this.messages.length || this.messageTotal <= 0) return null;
     const total = this.conversationDisplayTotal();
     const position = this.conversationPositionPercent(total);
